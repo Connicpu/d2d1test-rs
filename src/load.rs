@@ -29,3 +29,12 @@ pub fn create_d2d1_factory() -> ComPtr<ID2D1Factory> {
     ComPtr::wrap_existing(factory)
 }
 
+pub fn dpi_aware() {
+    let shcore_lib = DynamicLibrary::open(Some(Path::new("ShCore.dll"))).unwrap();
+    let set_aware: unsafe extern "system" fn(awareness: PROCESS_DPI_AWARENESS) -> HRESULT;
+    set_aware = unsafe { transmute(shcore_lib.symbol::<c_void>("SetProcessDpiAwareness").unwrap()) };
+    forget(shcore_lib);
+
+    unsafe { set_aware(PROCESS_DPI_AWARENESS::Process_Per_Monitor_DPI_Aware); }
+}
+

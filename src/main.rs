@@ -4,6 +4,8 @@
 extern crate winapi;
 extern crate user32;
 extern crate kernel32;
+extern crate shcore;
+extern crate xinput as xinp;
 
 pub mod comptr;
 pub mod load;
@@ -12,6 +14,7 @@ pub mod wstr;
 
 use winapi::*;
 use std::mem;
+use std::default::Default;
 
 fn check_hresult(result: HRESULT) {
     if result < 0 {
@@ -65,9 +68,39 @@ impl GameInstance {
     }
 
     unsafe fn paint(&mut self) {
+        use comptr::ComPtr;
+
         let rt = self.render_target.as_mut().unwrap();
         rt.BeginDraw();
         rt.Clear(&D2D1_COLOR_F { r: 1.0, g: 0.0, b: 0.0, a: 1.0 });
+
+        //let render_size = rt.GetSize();
+        let render_size = D2D1_SIZE_F { width: 512.0, height: 512.0 };
+
+        let mut brush = ComPtr::<ID2D1SolidColorBrush>::uninit();
+        check_hresult(rt.CreateSolidColorBrush(
+            &D2D1_COLOR_F { r: 0.0, g: 0.0, b: 1.0, a: 1.0 },
+            &D2D1_BRUSH_PROPERTIES {
+                opacity: 1.0,
+                transform: Default::default()
+            },
+            brush.addr()
+        ));
+
+        rt.FillRoundedRectangle(
+            &D2D1_ROUNDED_RECT {
+                rect: D2D1_RECT_F {
+                    left: 20.0,
+                    top: 20.0,
+                    right: render_size.width - 20.0,
+                    bottom: render_size.height - 20.0,
+                },
+                radiusX: 10.0,
+                radiusY: 10.0,
+            },
+            (&mut *brush) as &mut ID2D1Brush
+        );
+
         check_hresult(rt.EndDraw(&mut 0, &mut 0));
     }
 }
@@ -87,6 +120,15 @@ impl window::WindowProcHandler for GameInstance {
                     user32::EndPaint(hwnd, &pstruct);
                     0
                 },
+                WM_SIZE => {
+                    let width = LOWORD(lparam as u32) as u32;
+                    let height = HIWORD(lparam as u32) as u32;
+
+                    let rt = self.render_target.as_mut().unwrap();
+                    rt.Resize(&D2D1_SIZE_U { width: width, height: height });
+
+                    user32::DefWindowProcW(hwnd, msg, wparam, lparam)
+                },
                 _ => user32::DefWindowProcW(hwnd, msg, wparam, lparam)
             }
         }
@@ -94,6 +136,8 @@ impl window::WindowProcHandler for GameInstance {
 }
 
 fn main() {
+    load::dpi_aware();
+
     let window_size = D2D1_SIZE_U {
         width: 512,
         height: 512,

@@ -3,13 +3,23 @@ name = "d2d1test-rs"
 version = "0.1.0"
 dependencies = [
  "kernel32-sys 0.1.3",
+ "shcore-sys 0.0.1",
  "user32-sys 0.1.1",
  "winapi 0.2.1",
+ "xinput-sys 0.0.1",
 ]
 
 [[package]]
 name = "kernel32-sys"
 version = "0.1.3"
+dependencies = [
+ "winapi 0.2.1",
+ "winapi-build 0.1.1",
+]
+
+[[package]]
+name = "shcore-sys"
+version = "0.0.1"
 dependencies = [
  "winapi 0.2.1",
  "winapi-build 0.1.1",
@@ -30,4 +40,12 @@ version = "0.2.1"
 [[package]]
 name = "winapi-build"
 version = "0.1.1"
+
+[[package]]
+name = "xinput-sys"
+version = "0.0.1"
+dependencies = [
+ "winapi 0.2.1",
+ "winapi-build 0.1.1",
+]
 
