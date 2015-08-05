@@ -1,0 +1,16 @@
+[package]
+name = "d2d1test-rs"
+version = "0.1.0"
+authors = ["Connor Hilarides <connorcpu@live.com>"]
+
+[dependencies.winapi]
+path = "../winapi-rs"
+version = "*"
+
+[dependencies.user32-sys]
+path = "../winapi-rs/lib/user32-sys"
+version = "*"
+
+[dependencies.kernel32-sys]
+path = "../winapi-rs/lib/kernel32-sys"
+version = "*"
