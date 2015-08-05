@@ -2,12 +2,12 @@ use std::mem::transmute;
 use std::ops::{Deref, DerefMut};
 use winapi::*;
 
-pub trait RefCounted {
+pub unsafe trait RefCounted {
     fn add_ref(&mut self);
     fn release(&mut self);
 }
 
-impl<T> RefCounted for T {
+unsafe impl<T> RefCounted for T {
     fn add_ref(&mut self) {
         unsafe {
             let iunknown: &mut &mut IUnknown = transmute(self);
