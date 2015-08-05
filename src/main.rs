@@ -24,6 +24,7 @@ fn check_hresult(result: HRESULT) {
 
 struct GameInstance {
     pub size: D2D1_SIZE_U,
+    pub dpi_scale: f32,
     pub factory: comptr::ComPtr<ID2D1Factory>,
     pub render_target: Option<comptr::ComPtr<ID2D1HwndRenderTarget>>,
 }
@@ -32,6 +33,7 @@ impl GameInstance {
     fn new(factory: comptr::ComPtr<ID2D1Factory>, size: D2D1_SIZE_U) -> GameInstance {
         GameInstance {
             size: size,
+            dpi_scale: 1.0,
             factory: factory,
             render_target: None,
         }
@@ -41,6 +43,8 @@ impl GameInstance {
         let mut dpi_x = 0.0;
         let mut dpi_y = 0.0;
         self.factory.GetDesktopDpi(&mut dpi_x, &mut dpi_y);
+
+        self.dpi_scale = dpi_x / 96.0;
 
         let mut render_target = mem::zeroed();
         check_hresult(self.factory.CreateHwndRenderTarget(
@@ -75,7 +79,10 @@ impl GameInstance {
         rt.Clear(&D2D1_COLOR_F { r: 1.0, g: 0.0, b: 0.0, a: 1.0 });
 
         //let render_size = rt.GetSize();
-        let render_size = D2D1_SIZE_F { width: 512.0, height: 512.0 };
+        let render_size = D2D1_SIZE_F {
+            width: self.size.width as f32 / self.dpi_scale,
+            height: self.size.height as f32 / self.dpi_scale,
+        };
 
         let mut brush = ComPtr::<ID2D1SolidColorBrush>::uninit();
         check_hresult(rt.CreateSolidColorBrush(
@@ -95,8 +102,8 @@ impl GameInstance {
                     right: render_size.width - 20.0,
                     bottom: render_size.height - 20.0,
                 },
-                radiusX: 10.0,
-                radiusY: 10.0,
+                radiusX: 100.0,
+                radiusY: 100.0,
             },
             (&mut *brush) as &mut ID2D1Brush
         );
@@ -124,8 +131,9 @@ impl window::WindowProcHandler for GameInstance {
                     let width = LOWORD(lparam as u32) as u32;
                     let height = HIWORD(lparam as u32) as u32;
 
+                    self.size = D2D1_SIZE_U { width: width, height: height };
                     let rt = self.render_target.as_mut().unwrap();
-                    rt.Resize(&D2D1_SIZE_U { width: width, height: height });
+                    rt.Resize(&self.size);
 
                     user32::DefWindowProcW(hwnd, msg, wparam, lparam)
                 },
