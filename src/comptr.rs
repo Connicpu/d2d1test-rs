@@ -7,24 +7,21 @@ pub trait RefCounted {
     fn release(&mut self);
 }
 
-macro_rules! RefCountInterface {
-    ($interface:ty) => {
-        impl RefCounted for $interface {
-            fn add_ref(&mut self) {
-                unsafe { self.AddRef(); }
-            }
+impl<T> RefCounted for T {
+    fn add_ref(&mut self) {
+        unsafe {
+            let iunknown: &mut &mut IUnknown = transmute(self);
+            iunknown.AddRef();
+        }
+    }
 
-            fn release(&mut self) {
-                unsafe { self.Release(); }
-            }
+    fn release(&mut self) {
+        unsafe {
+            let iunknown: &mut &mut IUnknown = transmute(self);
+            iunknown.Release();
         }
     }
 }
-
-RefCountInterface!(IUnknown);
-RefCountInterface!(ID2D1Factory);
-RefCountInterface!(ID2D1RenderTarget);
-RefCountInterface!(ID2D1HwndRenderTarget);
 
 #[allow(raw_pointer_derive)]
 #[derive(Debug)]
@@ -42,14 +39,14 @@ impl<T: RefCounted> ComPtr<T> {
 
 impl<T: RefCounted> Drop for ComPtr<T> {
     fn drop(&mut self) {
-        self.release();
+        self.ptr.release();
     }
 }
 
 impl<T: RefCounted> Clone for ComPtr<T> {
     fn clone(&self) -> ComPtr<T> {
         let mut other = ComPtr::wrap_existing(self.ptr);
-        other.add_ref();
+        other.ptr.add_ref();
         other
     }
 }
