@@ -2,10 +2,9 @@
 #![feature(str_utf16)]
 
 extern crate winapi;
+extern crate d2d1 as d2d1_sys;
 extern crate user32;
 extern crate kernel32;
-extern crate shcore;
-extern crate xinput as xinp;
 
 pub mod comptr;
 pub mod load;
@@ -14,7 +13,6 @@ pub mod wstr;
 
 use winapi::*;
 use std::mem;
-use std::default::Default;
 
 fn check_hresult(result: HRESULT) {
     if result < 0 {
@@ -51,7 +49,7 @@ impl GameInstance {
             &D2D1_RENDER_TARGET_PROPERTIES {
                 _type: D2D1_RENDER_TARGET_TYPE_HARDWARE,
                 pixelFormat: D2D1_PIXEL_FORMAT {
-                    format: DXGI_FORMAT_B8G8R8A8_UNORM,
+                    format: DXGI_FORMAT_B8G8R8A8_UNORM as u32,
                     alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
                 },
                 dpiX: dpi_x,
@@ -78,18 +76,19 @@ impl GameInstance {
         rt.BeginDraw();
         rt.Clear(&D2D1_COLOR_F { r: 1.0, g: 0.0, b: 0.0, a: 1.0 });
 
-        //let render_size = rt.GetSize();
-        let render_size = D2D1_SIZE_F {
-            width: self.size.width as f32 / self.dpi_scale,
-            height: self.size.height as f32 / self.dpi_scale,
-        };
+        let render_size = *rt.GetSize(&mut mem::uninitialized());
 
         let mut brush = ComPtr::<ID2D1SolidColorBrush>::uninit();
         check_hresult(rt.CreateSolidColorBrush(
             &D2D1_COLOR_F { r: 0.0, g: 0.0, b: 1.0, a: 1.0 },
             &D2D1_BRUSH_PROPERTIES {
                 opacity: 1.0,
-                transform: Default::default()
+                transform: D2D1_MATRIX_3X2_F {
+                    matrix: [
+                        [1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                    ]
+                }
             },
             brush.addr()
         ));
@@ -152,6 +151,7 @@ fn main() {
     };
 
     let factory: comptr::ComPtr<ID2D1Factory> = load::create_d2d1_factory();
+
     println!("We have an ID2D1Factory: {:?}", factory);
 
     let hwnd = window::make_game_window(

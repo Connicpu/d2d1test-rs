@@ -15,10 +15,6 @@ version = "*"
 path = "../winapi-rs/lib/kernel32-sys"
 version = "*"
 
-[dependencies.shcore-sys]
-path = "../winapi-rs/lib/shcore-sys"
-version = "*"
-
-[dependencies.xinput-sys]
-path = "../winapi-rs/lib/xinput-sys"
+[dependencies.d2d1-sys]
+path = "../winapi-rs/lib/d2d1-sys"
 version = "*"
