@@ -18,3 +18,7 @@ version = "*"
 [dependencies.d2d1-sys]
 path = "../winapi-rs/lib/d2d1-sys"
 version = "*"
+
+[dependencies.dwrite-sys]
+path = "../winapi-rs/lib/dwrite-sys"
+version = "*"

@@ -27,6 +27,7 @@ RefCountInterface!(ID2D1Factory);
 RefCountInterface!(ID2D1RenderTarget);
 RefCountInterface!(ID2D1HwndRenderTarget);
 RefCountInterface!(ID2D1SolidColorBrush);
+RefCountInterface!(IDWriteFactory);
 
 #[allow(raw_pointer_derive)]
 #[derive(Debug)]

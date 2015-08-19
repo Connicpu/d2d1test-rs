@@ -3,6 +3,7 @@
 
 extern crate winapi;
 extern crate d2d1 as d2d1_sys;
+extern crate dwrite as dwrite_sys;
 extern crate user32;
 extern crate kernel32;
 
@@ -144,6 +145,15 @@ impl window::WindowProcHandler for GameInstance {
 
 fn main() {
     load::dpi_aware();
+
+    let mut factory: comptr::ComPtr<IDWriteFactory> = comptr::ComPtr::uninit();
+    unsafe {
+        dwrite_sys::DWriteCreateFactory(
+            DWRITE_FACTORY_TYPE_SHARED,
+            &UuidOfIDWriteFactory,
+            factory.addr() as *mut *mut IDWriteFactory as *mut *mut IUnknown
+        );
+    }
 
     let window_size = D2D1_SIZE_U {
         width: 512,
