@@ -15,4 +15,8 @@ impl WString {
     pub fn lpcwstr(&self) -> &WCHAR {
         &self.value[0]
     }
+
+    pub fn len(&self) -> UINT32 {
+        self.value.len() as UINT32
+    }
 }

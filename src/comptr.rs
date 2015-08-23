@@ -28,6 +28,7 @@ RefCountInterface!(ID2D1RenderTarget);
 RefCountInterface!(ID2D1HwndRenderTarget);
 RefCountInterface!(ID2D1SolidColorBrush);
 RefCountInterface!(IDWriteFactory);
+RefCountInterface!(IDWriteTextFormat);
 
 #[allow(raw_pointer_derive)]
 #[derive(Debug)]
@@ -54,6 +55,14 @@ impl<T: RefCounted> ComPtr<T> {
 
     pub fn addr(&mut self) -> &mut *mut T {
         &mut self.ptr
+    }
+
+    pub fn ptr(&self) -> *const T {
+        self.ptr as *const T
+    }
+
+    pub fn ptr_mut(&mut self) -> *mut T {
+        self.ptr
     }
 }
 

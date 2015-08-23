@@ -14,6 +14,8 @@ pub mod wstr;
 
 use winapi::*;
 use std::mem;
+use comptr::ComPtr;
+use wstr::WString;
 
 fn check_hresult(result: HRESULT) {
     if result < 0 {
@@ -24,17 +26,22 @@ fn check_hresult(result: HRESULT) {
 struct GameInstance {
     pub size: D2D1_SIZE_U,
     pub dpi_scale: f32,
-    pub factory: comptr::ComPtr<ID2D1Factory>,
-    pub render_target: Option<comptr::ComPtr<ID2D1HwndRenderTarget>>,
+    pub factory: ComPtr<ID2D1Factory>,
+    pub dwrite: ComPtr<IDWriteFactory>,
+
+    pub render_target: Option<ComPtr<ID2D1HwndRenderTarget>>,
+    pub text_format: Option<ComPtr<IDWriteTextFormat>>,
 }
 
 impl GameInstance {
-    fn new(factory: comptr::ComPtr<ID2D1Factory>, size: D2D1_SIZE_U) -> GameInstance {
+    fn new(factory: ComPtr<ID2D1Factory>, dwrite: ComPtr<IDWriteFactory>, size: D2D1_SIZE_U) -> GameInstance {
         GameInstance {
             size: size,
             dpi_scale: 1.0,
             factory: factory,
+            dwrite: dwrite,
             render_target: None,
+            text_format: None,
         }
     }
 
@@ -66,13 +73,30 @@ impl GameInstance {
             &mut render_target
         ));
 
-        self.render_target = Some(comptr::ComPtr::wrap_existing(render_target));
+        self.render_target = Some(ComPtr::wrap_existing(render_target));
         println!("We have an ID2D1RenderTarget: {:?}", self.render_target);
+
+        let mut text_format = mem::zeroed();
+        check_hresult(self.dwrite.CreateTextFormat(
+            WString::from_str("Comic Sans MS").lpcwstr(),
+            mem::zeroed(), // Font collection- use null for default
+            DWRITE_FONT_WEIGHT_NORMAL,
+            DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL,
+            26.0, // Font size
+            WString::from_str("en-US").lpcwstr(),
+            &mut text_format
+        ));
+
+        let format: &mut IDWriteTextFormat = mem::transmute(text_format);
+        check_hresult(format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER));
+        check_hresult(format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER));
+
+        self.text_format = Some(ComPtr::wrap_existing(text_format));
+        println!("We have an IDWriteTextFormat: {:?}", self.text_format);
     }
 
     unsafe fn paint(&mut self) {
-        use comptr::ComPtr;
-
         let rt = self.render_target.as_mut().unwrap();
         rt.BeginDraw();
         rt.Clear(&D2D1_COLOR_F { r: 1.0, g: 0.0, b: 0.0, a: 1.0 });
@@ -94,6 +118,21 @@ impl GameInstance {
             brush.addr()
         ));
 
+        let mut text_brush = ComPtr::<ID2D1SolidColorBrush>::uninit();
+        check_hresult(rt.CreateSolidColorBrush(
+            &D2D1_COLOR_F { r: 0.0, g: 1.0, b: 0.0, a: 1.0 },
+            &D2D1_BRUSH_PROPERTIES {
+                opacity: 1.0,
+                transform: D2D1_MATRIX_3X2_F {
+                    matrix: [
+                        [1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                    ]
+                }
+            },
+            text_brush.addr()
+        ));
+
         rt.FillRoundedRectangle(
             &D2D1_ROUNDED_RECT {
                 rect: D2D1_RECT_F {
@@ -105,7 +144,25 @@ impl GameInstance {
                 radiusX: 100.0,
                 radiusY: 100.0,
             },
-            (&mut *brush) as &mut ID2D1Brush
+            brush.ptr_mut() as *mut winapi::d2d1::ID2D1Brush
+        );
+
+        let message = WString::from_str("This is a very nice font! 🖕🏻\n\
+Try displaying some 🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰");
+
+        rt.DrawText(
+            message.lpcwstr(),
+            message.len(),
+            self.text_format.as_mut().unwrap().ptr_mut(),
+            &D2D1_RECT_F {
+                left: 20.0,
+                top: 20.0,
+                right: render_size.width - 20.0,
+                bottom: render_size.height - 20.0,
+            },
+            text_brush.ptr_mut() as *mut winapi::d2d1::ID2D1Brush,
+            D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT,
+            DWRITE_MEASURING_MODE_NATURAL
         );
 
         check_hresult(rt.EndDraw(&mut 0, &mut 0));
@@ -146,28 +203,20 @@ impl window::WindowProcHandler for GameInstance {
 fn main() {
     load::dpi_aware();
 
-    let mut factory: comptr::ComPtr<IDWriteFactory> = comptr::ComPtr::uninit();
-    unsafe {
-        dwrite_sys::DWriteCreateFactory(
-            DWRITE_FACTORY_TYPE_SHARED,
-            &UuidOfIDWriteFactory,
-            factory.addr() as *mut *mut IDWriteFactory as *mut *mut IUnknown
-        );
-    }
-
     let window_size = D2D1_SIZE_U {
-        width: 512,
-        height: 512,
+        width: 1024,
+        height: 1024,
     };
 
-    let factory: comptr::ComPtr<ID2D1Factory> = load::create_d2d1_factory();
+    let factory = load::create_d2d1_factory();
+    let dwrite = load::create_dwrite_factory();
 
     println!("We have an ID2D1Factory: {:?}", factory);
 
     let hwnd = window::make_game_window(
         window_size.width as c_int,
         window_size.height as c_int,
-        Box::new(GameInstance::new(factory, window_size))
+        Box::new(GameInstance::new(factory, dwrite, window_size))
     );
     println!("We have a window: {:?}", hwnd);
 
