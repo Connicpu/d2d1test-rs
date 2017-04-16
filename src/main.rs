@@ -1,224 +1,201 @@
-#![feature(dynamic_lib)]
-#![feature(str_utf16)]
+#![windows_subsystem = "windows"]
 
 extern crate winapi;
-extern crate d2d1 as d2d1_sys;
-extern crate dwrite as dwrite_sys;
 extern crate user32;
-extern crate kernel32;
+extern crate gdi32;
+extern crate direct2d;
+extern crate directwrite;
 
-pub mod comptr;
-pub mod load;
-pub mod window;
-pub mod wstr;
+extern crate libloading;
 
-use winapi::*;
+mod hwnd_rt;
+mod util;
+mod window;
+
+use std::cell::RefCell;
 use std::mem;
-use comptr::ComPtr;
-use wstr::WString;
+use std::ptr::null_mut;
+use std::rc::Rc;
 
-fn check_hresult(result: HRESULT) {
-    if result < 0 {
-        panic!("HRESULT Failure");
-    }
+use user32::*;
+use winapi::*;
+use direct2d::{RenderTarget, brush};
+use direct2d::math::*;
+use direct2d::render_target::DrawTextOption;
+use directwrite::text_format::{self, TextFormat};
+
+use hwnd_rt::HwndRtParams;
+use util::{Error, ToWide};
+use window::{create_window, WndProc};
+
+struct Resources {
+    fg: brush::SolidColor,
+    bg: brush::SolidColor,
+    text_format: TextFormat,
 }
 
-struct GameInstance {
-    pub size: D2D1_SIZE_U,
-    pub dpi_scale: f32,
-    pub factory: ComPtr<ID2D1Factory>,
-    pub dwrite: ComPtr<IDWriteFactory>,
-
-    pub render_target: Option<ComPtr<ID2D1HwndRenderTarget>>,
-    pub text_format: Option<ComPtr<IDWriteTextFormat>>,
+struct MainWinState {
+    d2d_factory: direct2d::Factory,
+    dwrite_factory: directwrite::Factory,
+    render_target: Option<RenderTarget>,
+    resources: Option<Resources>,
 }
 
-impl GameInstance {
-    fn new(factory: ComPtr<ID2D1Factory>, dwrite: ComPtr<IDWriteFactory>, size: D2D1_SIZE_U) -> GameInstance {
-        GameInstance {
-            size: size,
-            dpi_scale: 1.0,
-            factory: factory,
-            dwrite: dwrite,
+impl MainWinState {
+    fn new() -> MainWinState {
+        MainWinState {
+            d2d_factory: direct2d::Factory::new().unwrap(),
+            dwrite_factory: directwrite::Factory::new().unwrap(),
             render_target: None,
-            text_format: None,
+            resources: None,
         }
     }
 
-    unsafe fn initialize(&mut self, hwnd: HWND) {
-        let mut dpi_x = 0.0;
-        let mut dpi_y = 0.0;
-        self.factory.GetDesktopDpi(&mut dpi_x, &mut dpi_y);
-
-        self.dpi_scale = dpi_x / 96.0;
-
-        let mut render_target = mem::zeroed();
-        check_hresult(self.factory.CreateHwndRenderTarget(
-            &D2D1_RENDER_TARGET_PROPERTIES {
-                _type: D2D1_RENDER_TARGET_TYPE_HARDWARE,
-                pixelFormat: D2D1_PIXEL_FORMAT {
-                    format: DXGI_FORMAT_B8G8R8A8_UNORM as u32,
-                    alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
-                },
-                dpiX: dpi_x,
-                dpiY: dpi_y,
-                usage: D2D1_RENDER_TARGET_USAGE_NONE,
-                minLevel: D2D1_FEATURE_LEVEL_10,
-            },
-            &D2D1_HWND_RENDER_TARGET_PROPERTIES {
-                hwnd: hwnd,
-                pixelSize: self.size,
-                presentOptions: D2D1_PRESENT_OPTIONS_IMMEDIATELY,
-            },
-            &mut render_target
-        ));
-
-        self.render_target = Some(ComPtr::wrap_existing(render_target));
-        println!("We have an ID2D1RenderTarget: {:?}", self.render_target);
-
-        let mut text_format = mem::zeroed();
-        check_hresult(self.dwrite.CreateTextFormat(
-            WString::from_str("Comic Sans MS").lpcwstr(),
-            mem::zeroed(), // Font collection- use null for default
-            DWRITE_FONT_WEIGHT_NORMAL,
-            DWRITE_FONT_STYLE_NORMAL,
-            DWRITE_FONT_STRETCH_NORMAL,
-            26.0, // Font size
-            WString::from_str("en-US").lpcwstr(),
-            &mut text_format
-        ));
-
-        let format: &mut IDWriteTextFormat = mem::transmute(text_format);
-        check_hresult(format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER));
-        check_hresult(format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER));
-
-        self.text_format = Some(ComPtr::wrap_existing(text_format));
-        println!("We have an IDWriteTextFormat: {:?}", self.text_format);
+    fn create_resources(&mut self) -> Resources {
+        let rt = self.render_target.as_mut().unwrap();
+        let text_format_params = text_format::ParamBuilder::new()
+            .size(15.0)
+            .family("Consolas")
+            .build().unwrap();
+        let text_format = self.dwrite_factory.create(text_format_params).unwrap();
+        Resources {
+            fg: rt.create_solid_color_brush(0xf0f0ea, &BrushProperties::default()).unwrap(),
+            bg: rt.create_solid_color_brush(0x272822, &BrushProperties::default()).unwrap(),
+            text_format: text_format,
+        }
     }
 
-    unsafe fn paint(&mut self) {
-        let rt = self.render_target.as_mut().unwrap();
-        rt.BeginDraw();
-        rt.Clear(&D2D1_COLOR_F { r: 1.0, g: 0.0, b: 0.0, a: 1.0 });
-
-        let render_size = *rt.GetSize(&mut mem::uninitialized());
-
-        let mut brush = ComPtr::<ID2D1SolidColorBrush>::uninit();
-        check_hresult(rt.CreateSolidColorBrush(
-            &D2D1_COLOR_F { r: 0.0, g: 0.0, b: 1.0, a: 1.0 },
-            &D2D1_BRUSH_PROPERTIES {
-                opacity: 1.0,
-                transform: D2D1_MATRIX_3X2_F {
-                    matrix: [
-                        [1.0, 0.0, 0.0],
-                        [0.0, 1.0, 0.0],
-                    ]
-                }
-            },
-            brush.addr()
-        ));
-
-        let mut text_brush = ComPtr::<ID2D1SolidColorBrush>::uninit();
-        check_hresult(rt.CreateSolidColorBrush(
-            &D2D1_COLOR_F { r: 0.0, g: 1.0, b: 0.0, a: 1.0 },
-            &D2D1_BRUSH_PROPERTIES {
-                opacity: 1.0,
-                transform: D2D1_MATRIX_3X2_F {
-                    matrix: [
-                        [1.0, 0.0, 0.0],
-                        [0.0, 1.0, 0.0],
-                    ]
-                }
-            },
-            text_brush.addr()
-        ));
-
-        rt.FillRoundedRectangle(
-            &D2D1_ROUNDED_RECT {
-                rect: D2D1_RECT_F {
-                    left: 20.0,
-                    top: 20.0,
-                    right: render_size.width - 20.0,
-                    bottom: render_size.height - 20.0,
-                },
-                radiusX: 100.0,
-                radiusY: 100.0,
-            },
-            brush.ptr_mut() as *mut winapi::d2d1::ID2D1Brush
-        );
-
-        let message = WString::from_str("This is a very nice font! 🖕🏻\n\
-Try displaying some 🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰🐇🐰");
-
-        rt.DrawText(
-            message.lpcwstr(),
-            message.len(),
-            self.text_format.as_mut().unwrap().ptr_mut(),
-            &D2D1_RECT_F {
-                left: 20.0,
-                top: 20.0,
-                right: render_size.width - 20.0,
-                bottom: render_size.height - 20.0,
-            },
-            text_brush.ptr_mut() as *mut winapi::d2d1::ID2D1Brush,
-            D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT,
-            DWRITE_MEASURING_MODE_NATURAL
-        );
-
-        check_hresult(rt.EndDraw(&mut 0, &mut 0));
+    fn render(&mut self) {
+        let res = {
+            if self.resources.is_none() {
+                self.resources = Some(self.create_resources());
+            }
+            let resources = &self.resources.as_ref().unwrap();
+            let rt = self.render_target.as_mut().unwrap();
+            rt.begin_draw();
+            let size = rt.get_size();
+            let rect = RectF::from((0.0, 0.0, size.width, size.height));
+            rt.fill_rectangle(&rect, &resources.bg);
+            rt.draw_line(&Point2F::from((10.0, 50.0)), &Point2F::from((90.0, 90.0)),
+                &resources.fg, 1.0, None);
+            let msg = "Hello DWrite! 🐰🐇";
+            rt.draw_text(
+                msg,
+                &resources.text_format,
+                &RectF::from((10.0, 10.0, 300.0, 90.0)),
+                &resources.fg,
+                &[DrawTextOption::EnableColorFont]
+            );
+            rt.end_draw()
+        };
+        if res.is_err() {
+            self.render_target = None;
+        }
     }
 }
 
-impl window::WindowProcHandler for GameInstance {
-    fn wnd_proc(&mut self, hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        unsafe {
-            match msg {
-                WM_CREATE => {
-                    self.initialize(hwnd);
-                    0
-                },
-                WM_PAINT => {
-                    let mut pstruct: PAINTSTRUCT = mem::zeroed();
-                    user32::BeginPaint(hwnd, &mut pstruct);
-                    self.paint();
-                    user32::EndPaint(hwnd, &pstruct);
-                    0
-                },
-                WM_SIZE => {
-                    let width = LOWORD(lparam as u32) as u32;
-                    let height = HIWORD(lparam as u32) as u32;
+struct MainWin {
+    state: RefCell<MainWinState>
+}
 
-                    self.size = D2D1_SIZE_U { width: width, height: height };
-                    let rt = self.render_target.as_mut().unwrap();
-                    rt.Resize(&self.size);
-
-                    user32::DefWindowProcW(hwnd, msg, wparam, lparam)
-                },
-                _ => user32::DefWindowProcW(hwnd, msg, wparam, lparam)
-            }
+impl MainWin {
+    fn new(state: MainWinState) -> MainWin {
+        MainWin {
+            state: RefCell::new(state)
         }
+    }
+}
+
+impl WndProc for MainWin {
+    fn window_proc(&self, hwnd: HWND, msg: UINT, _wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        //println!("{:x} {:x} {:x}", msg, _wparam, lparam);
+        match msg {
+            WM_DESTROY => unsafe {
+                PostQuitMessage(0);
+                None
+            },
+            WM_PAINT => unsafe {
+                let mut state = self.state.borrow_mut();
+                if state.render_target.is_none() {
+                    let mut rect: RECT = mem::uninitialized();
+                    user32::GetClientRect(hwnd, &mut rect);
+                    //println!("rect={:?}", rect);
+                    let width = (rect.right - rect.left) as u32;
+                    let height = (rect.bottom - rect.top) as u32;
+                    let params = HwndRtParams { hwnd: hwnd, width: width, height: height };
+                    state.render_target = state.d2d_factory.create_render_target(params).ok();
+                }
+                state.render();
+                user32::ValidateRect(hwnd, null_mut());
+                Some(0)
+            },
+            WM_SIZE => unsafe {
+                let mut state = self.state.borrow_mut();
+                state.render_target.as_mut().and_then(|rt|
+                    rt.hwnd_rt().map(|mut hrt|
+                        hrt.Resize(&D2D1_SIZE_U {
+                            width: LOWORD(lparam as u32) as u32,
+                            height: HIWORD(lparam as u32) as u32,
+                        })
+                    )
+                );
+                None
+            },
+            _ => None
+        }
+    }
+}
+
+fn create_main() -> Result<HWND, Error> {
+    unsafe {
+        let class_name = "d1d1test-rs".to_wide();
+        let icon = LoadIconW(0 as HINSTANCE, IDI_APPLICATION);
+        let cursor = LoadCursorW(0 as HINSTANCE, IDC_IBEAM);
+        let brush = gdi32::CreateSolidBrush(0xffffff);
+        let wnd = WNDCLASSW {
+            style: 0,
+            lpfnWndProc: Some(window::win_proc_dispatch),
+            cbClsExtra: 0,
+            cbWndExtra: 0,
+            hInstance: 0 as HINSTANCE,
+            hIcon: icon,
+            hCursor: cursor,
+            hbrBackground: brush,
+            lpszMenuName: 0 as LPCWSTR,
+            lpszClassName: class_name.as_ptr(),
+        };
+        let class_atom = RegisterClassW(&wnd);
+        if class_atom == 0 {
+            return Err(Error::Null);
+        }
+        let main_win: Rc<Box<WndProc>> = Rc::new(Box::new(MainWin::new(MainWinState::new())));
+        let width = 500;  // TODO: scale by dpi
+        let height = 400;
+        let hwnd = create_window(winapi::WS_EX_OVERLAPPEDWINDOW, class_name.as_ptr(),
+            class_name.as_ptr(), WS_OVERLAPPEDWINDOW,
+            CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0 as HWND, 0 as HMENU, 0 as HINSTANCE,
+            main_win);
+        if hwnd.is_null() {
+            return Err(Error::Null);
+        }
+        Ok(hwnd)
     }
 }
 
 fn main() {
-    load::dpi_aware();
-
-    let window_size = D2D1_SIZE_U {
-        width: 1024,
-        height: 1024,
-    };
-
-    let factory = load::create_d2d1_factory();
-    let dwrite = load::create_dwrite_factory();
-
-    println!("We have an ID2D1Factory: {:?}", factory);
-
-    let hwnd = window::make_game_window(
-        window_size.width as c_int,
-        window_size.height as c_int,
-        Box::new(GameInstance::new(factory, dwrite, window_size))
-    );
-    println!("We have a window: {:?}", hwnd);
-
-    window::process_message_loop(hwnd);
+    unsafe {
+        util::dpi_aware();
+        let hwnd = create_main().unwrap();
+        ShowWindow(hwnd, SW_SHOWNORMAL);
+        UpdateWindow(hwnd);
+        let mut msg = mem::uninitialized();
+        loop {
+            let bres = GetMessageW(&mut msg, null_mut(), 0, 0);
+            if bres <= 0 {
+                break;
+            }
+            TranslateMessage(&mut msg);
+            DispatchMessageW(&mut msg);
+        }
+    }
 }
