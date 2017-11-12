@@ -118,11 +118,12 @@ impl MainWinState {
             rt.draw_line(&Point2F::from((0.0, 0.0)), &Point2F::from((size.width, size.height)),
                 &resources.fg, 1.0, None);
             let msg = "Hello DWrite! This is a somewhat longer string of text intended to provoke slightly longer draw times.";
+            let dy = 15.0;
             for i in 0..30 {
                 rt.draw_text(
                     msg,
                     &resources.text_format,
-                    &RectF::from((10.0, 10.0 + (i as f32) * 15.0, 900.0, 90.0 + (i as f32) * 15.0)),
+                    &RectF::from((10.0, 10.0 + (i as f32) * dy, 900.0, 90.0 + (i as f32) * dy)),
                     &resources.fg,
                     &[DrawTextOption::EnableColorFont]
                 );
@@ -180,6 +181,9 @@ impl WndProc for MainWin {
                 let res = (*state.swap_chain).ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
                 if SUCCEEDED(res) {
                     state.rebuild_render_target();
+                    state.render();
+                    (*state.swap_chain).Present(0, 0);
+                    ValidateRect(hwnd, null_mut());
                 } else {
                     println!("ResizeBuffers failed: 0x{:x}", res);
                 }
