@@ -9,16 +9,21 @@ authors = [
 description = "Test program exercising Rust bindings for Direct2D and DirectWrite."
 
 [dependencies]
-winapi = "0.2"
-uuid = "0.1"
-kernel32-sys = "0.2"
-user32-sys = "0.1"
-gdi32-sys = "0.2"
-
-directwrite = "0.0.5"
-direct2d = "0.0.5"
+directwrite = "0.0.7"
+direct2d = "0.0.7"
 
 libloading = "0.3"
 
+[dependencies.winapi]
+git = "https://github.com/retep998/winapi-rs.git"
+branch = "dev"
+features = ["d2d1_1", "dwrite", "winbase", "libloaderapi", "errhandlingapi", "winuser", "dxgi1_3", "d3d11", "shellscalingapi"]
+
 [build-dependencies]
-winapi-build = "0.1.1"
+winapi-build = "0.1"
+
+[patch.crates-io.directwrite]
+git = "https://github.com/Connicpu/directwrite-rs.git"
+
+[patch.crates-io.direct2d]
+git = "https://github.com/Connicpu/direct2d-rs.git"

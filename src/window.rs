@@ -1,12 +1,20 @@
 
-use winapi::*;
-use user32::*;
+use winapi::ctypes::c_int;
+use winapi::shared::basetsd::LONG_PTR;
+use winapi::shared::dxgi1_2::IDXGISwapChain1;
+use winapi::shared::minwindef::*;
+use winapi::shared::windef::*;
+use winapi::um::winuser::*;
+use winapi::um::winnt::LPCWSTR;
 
 use std::mem;
 use std::rc::Rc;
 
 pub trait WndProc {
     fn window_proc(&self, hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT>;
+
+    // This clearly doesn't belong here but is expedient while we experiment with state wiring.
+    fn set_swap_chain(&self, swap_chain: *mut IDXGISwapChain1);
 }
 
 pub unsafe extern "system" fn win_proc_dispatch(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM)

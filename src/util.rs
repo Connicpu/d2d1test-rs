@@ -1,7 +1,8 @@
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 
-use winapi::{HRESULT, PROCESS_DPI_AWARENESS, Process_System_DPI_Aware};
+use winapi::shared::winerror::*;
+use winapi::um::shellscalingapi::*;
 
 use libloading::{Library, Symbol};
 
@@ -40,6 +41,6 @@ pub fn dpi_aware() {
         // We choose System DPI awareness here because per process has many pitfalls. The
         // best way to do this would be to set per process v2 dpi awareness in the manifest,
         // falling back to system dpi awareness for earlier versions.
-        set_aware(Process_System_DPI_Aware);
+        set_aware(PROCESS_SYSTEM_DPI_AWARE);
     }
 }
