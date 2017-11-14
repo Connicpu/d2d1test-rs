@@ -201,6 +201,7 @@ impl WndProc for MainWin {
                 */
                 Some(1)
             },
+            WM_ERASEBKGND => Some(1),
             _ => None
         }
     }
@@ -289,7 +290,7 @@ fn create_main() -> Result<HWND, Error> {
         let class_name = "d1d1test-rs".to_wide();
         let icon = LoadIconW(0 as HINSTANCE, IDI_APPLICATION);
         let cursor = LoadCursorW(0 as HINSTANCE, IDC_IBEAM);
-        let brush = CreateSolidBrush(0xffffff);
+        let brush = CreateSolidBrush(0x00ff00);
         let wnd = WNDCLASSW {
             style: 0,
             lpfnWndProc: Some(window::win_proc_dispatch),
