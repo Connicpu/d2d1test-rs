@@ -104,7 +104,7 @@ impl MainWinState {
         self.rebuild_render_target();
     }
 
-    fn render(&mut self) {
+    fn render(&mut self, indicator: bool) {
         let res = {
             if self.resources.is_none() {
                 self.resources = Some(self.create_resources());
@@ -115,11 +115,13 @@ impl MainWinState {
             let size = rt.get_size();
             let rect = RectF::from((0.0, 0.0, size.width, size.height));
             rt.fill_rectangle(&rect, &resources.bg);
-            rt.draw_line(&Point2F::from((0.0, 0.0)), &Point2F::from((size.width, size.height)),
-                &resources.fg, 1.0, None);
+            if indicator {
+                rt.draw_line(&Point2F::from((0.0, 0.0)), &Point2F::from((size.width, size.height)),
+                    &resources.fg, 1.0, None);
+            }
             let msg = "Hello DWrite! This is a somewhat longer string of text intended to provoke slightly longer draw times.";
             let dy = 15.0;
-            for i in 0..30 {
+            for i in 0..60 {
                 rt.draw_text(
                     msg,
                     &resources.text_format,
@@ -170,9 +172,9 @@ impl WndProc for MainWin {
                     let params = HwndRtParams { hwnd: hwnd, width: width, height: height };
                     state.render_target = state.d2d_factory.create_render_target(params).ok();
                 }
-                state.render();
-                (*state.swap_chain).Present(0, 0);
-                ValidateRect(hwnd, null_mut());
+                state.render(true);
+                (*state.swap_chain).Present(1, 0);
+                ValidateRect(hwnd, null());
                 Some(0)
             },
             WM_SIZE => unsafe {
@@ -181,9 +183,10 @@ impl WndProc for MainWin {
                 let res = (*state.swap_chain).ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
                 if SUCCEEDED(res) {
                     state.rebuild_render_target();
-                    state.render();
-                    (*state.swap_chain).Present(0, 0);
-                    ValidateRect(hwnd, null_mut());
+                    //state.render(true);
+                    //(*state.swap_chain).Present(0, 0);
+                    InvalidateRect(hwnd, null_mut(), FALSE);
+                    //ValidateRect(hwnd, null_mut());
                 } else {
                     println!("ResizeBuffers failed: 0x{:x}", res);
                 }
@@ -252,6 +255,7 @@ unsafe impl RenderTargetBacking for DxgiBacking {
             let res = factory.CreateDxgiSurfaceRenderTarget(self.0, &props, &mut render_target);
             //println!("surface render target res=0x{:x}, ptr = {:?}", res, render_target);
             if SUCCEEDED(res) {
+                //(*render_target).SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
                 Ok(render_target)
             } else {
                 Err(res)
@@ -292,7 +296,7 @@ fn create_main() -> Result<HWND, Error> {
         let cursor = LoadCursorW(0 as HINSTANCE, IDC_IBEAM);
         let brush = CreateSolidBrush(0x00ff00);
         let wnd = WNDCLASSW {
-            style: 0,
+            style: CS_HREDRAW,
             lpfnWndProc: Some(window::win_proc_dispatch),
             cbClsExtra: 0,
             cbWndExtra: 0,
@@ -310,7 +314,7 @@ fn create_main() -> Result<HWND, Error> {
         let main_win: Rc<Box<WndProc>> = Rc::new(Box::new(MainWin::new(MainWinState::new())));
         let width = 500;  // TODO: scale by dpi
         let height = 400;
-        let hwnd = create_window(WS_EX_OVERLAPPEDWINDOW, class_name.as_ptr(),
+        let hwnd = create_window(/* WS_EX_OVERLAPPEDWINDOW | */ WS_EX_NOREDIRECTIONBITMAP, class_name.as_ptr(),
             class_name.as_ptr(), WS_OVERLAPPEDWINDOW,
             CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0 as HWND, 0 as HMENU, 0 as HINSTANCE,
             main_win.clone());
@@ -352,7 +356,7 @@ fn create_main() -> Result<HWND, Error> {
             Scaling: DXGI_SCALING_NONE,
             SwapEffect: DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
             AlphaMode: DXGI_ALPHA_MODE_UNSPECIFIED,
-            Flags: DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH,
+            Flags: 0,
         };
         let res = (*factory).CreateSwapChainForHwnd(d3d11_device as *mut IUnknown, hwnd, &desc,
             null(), null_mut(), &mut swap_chain);
