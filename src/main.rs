@@ -33,6 +33,7 @@ use winapi::um::d2d1_1::*;
 use winapi::um::d3d11::*;
 use winapi::um::d3dcommon::*;
 use winapi::um::dcommon::*;
+use winapi::um::dcomp::*;
 use winapi::um::wingdi::*;
 use winapi::um::winuser::*;
 use winapi::um::unknwnbase::*;
@@ -57,7 +58,8 @@ struct MainWinState {
     dwrite_factory: directwrite::Factory,
     render_target: Option<RenderTarget>,
     resources: Option<Resources>,
-    swap_chain: *mut IDXGISwapChain1,
+    dcomp_device: *mut IDCompositionDevice,
+    surface: *mut IDCompositionVirtualSurface,
 }
 
 impl MainWinState {
@@ -67,7 +69,8 @@ impl MainWinState {
             dwrite_factory: directwrite::Factory::new().unwrap(),
             render_target: None,
             resources: None,
-            swap_chain: null_mut(),
+            dcomp_device: null_mut(),
+            surface: null_mut(),
         }
     }
 
@@ -85,6 +88,7 @@ impl MainWinState {
         }
     }
 
+    /*
     fn rebuild_render_target(&mut self) {
         unsafe {
             let mut buffer: *mut IDXGISurface = null_mut();
@@ -98,10 +102,11 @@ impl MainWinState {
             }
         }
     }
+    */
 
-    fn set_swap_chain(&mut self, swap_chain: *mut IDXGISwapChain1) {
-        self.swap_chain = swap_chain;
-        self.rebuild_render_target();
+    fn set(&mut self, dcomp_device: *mut IDCompositionDevice, surface: *mut IDCompositionVirtualSurface) {
+        self.dcomp_device = dcomp_device;
+        self.surface = surface;
     }
 
     fn render(&mut self, indicator: bool) {
@@ -162,7 +167,46 @@ impl WndProc for MainWin {
             },
             WM_PAINT => unsafe {
                 //println!("WM_PAINT");
+                let mut rect = mem::zeroed();
+                GetClientRect(hwnd, &mut rect);
                 let mut state = self.state.borrow_mut();
+
+                let mut dc: *mut ID2D1DeviceContext = null_mut();
+                let mut offset: POINT = mem::zeroed();
+                let hr = (*state.surface).BeginDraw(null(), &ID2D1DeviceContext::uuidof(),
+                    &mut dc as *mut _ as *mut _, &mut offset);
+                println!("begindraw hr=0x{:x}, offset={},{}", hr, offset.x, offset.y);
+
+
+                let mut brush: *mut ID2D1SolidColorBrush = null_mut();
+                let color = D2D1_COLOR_F { r: 0.0, g: 1.0, b: 0.0, a: 1.0 };
+                let hr = (*dc).CreateSolidColorBrush(&color, null(), &mut brush);
+
+                let black = D2D1_COLOR_F { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
+                (*dc).Clear(&black);
+
+                (*dc).DrawLine(D2D1_POINT_2F { x: offset.x as f32, y: offset.y as f32},
+                    D2D1_POINT_2F { x: offset.x as f32 + rect.right as f32, y: offset.y as f32 + rect.bottom as f32 },
+                    brush as *mut ID2D1Brush, 1.0, null_mut());
+
+                (*brush).Release();
+
+
+                (*dc).Release();
+
+                //::std::thread::sleep(::std::time::Duration::from_millis(100));
+                (*state.surface).EndDraw();
+
+                (*state.dcomp_device).Commit();
+
+                /*
+                let mut dcd2: *mut IDCompositionDevice2 = null_mut();
+                (*state.dcomp_device).QueryInterface(&IDCompositionDevice2::uuidof(), &mut dcd2 as *mut _ as *mut _);
+                (*dcd2).WaitForCommitCompletion();
+                (*dcd2).Release();
+                */
+
+                /*
                 if state.render_target.is_none() {
                     let mut rect: RECT = mem::uninitialized();
                     GetClientRect(hwnd, &mut rect);
@@ -174,11 +218,16 @@ impl WndProc for MainWin {
                 }
                 state.render(true);
                 (*state.swap_chain).Present(1, 0);
+                */
                 ValidateRect(hwnd, null());
                 Some(0)
             },
             WM_SIZE => unsafe {
                 let mut state = self.state.borrow_mut();
+                let width = lparam & 0xffff;
+                let height = lparam >> 16;
+                (*state.surface).Resize(width as u32, height as u32);
+                /*
                 state.render_target = None;
                 let res = (*state.swap_chain).ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
                 if SUCCEEDED(res) {
@@ -190,6 +239,7 @@ impl WndProc for MainWin {
                 } else {
                     println!("ResizeBuffers failed: 0x{:x}", res);
                 }
+                */
                 //println!("size {} x {} {:?}", LOWORD(lparam as u32), HIWORD(lparam as u32),
                 //    self.clock.elapsed());
                 /*
@@ -209,8 +259,8 @@ impl WndProc for MainWin {
         }
     }
 
-    fn set_swap_chain(&self, swap_chain: *mut IDXGISwapChain1) {
-        self.state.borrow_mut().set_swap_chain(swap_chain);
+    fn set(&self, dcomp_device: *mut IDCompositionDevice, surface: *mut IDCompositionVirtualSurface) {
+        self.state.borrow_mut().set(dcomp_device, surface);
     }
 }
 
@@ -330,6 +380,71 @@ fn create_main() -> Result<HWND, Error> {
         D3D11CreateDevice(null_mut(), D3D_DRIVER_TYPE_HARDWARE, null_mut(), flags,
             null(), 0, D3D11_SDK_VERSION, &mut d3d11_device, null_mut(), null_mut());
         println!("d3d11 device pointer = {:?}", d3d11_device);
+
+        let mut dxgi_device: *mut IDXGIDevice = null_mut();
+        (*d3d11_device).QueryInterface(&IDXGIDevice::uuidof(), &mut dxgi_device as *mut _ as *mut _);
+        println!("dxgi device ptr = {:?}", dxgi_device);
+
+        let mut d2d1_device: *mut ID2D1Device = null_mut();
+        D2D1CreateDevice(dxgi_device, null(), &mut d2d1_device);
+
+        let mut d2d1_factory: *mut ID2D1Factory = null_mut();
+        /*
+        D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &ID2D1Factory1::uuidof(),
+            null(), &mut d2d1_factory as *mut _ as *mut _);
+            */
+        (*d2d1_device).GetFactory(&mut d2d1_factory);
+        println!("d2d1 factory ptr = {:?}", d2d1_factory);
+
+        let mut dcomp_device: *mut IDCompositionDevice = null_mut();
+        DCompositionCreateDevice2(d2d1_device as *mut IUnknown, &IDCompositionDevice::uuidof(),
+            &mut dcomp_device as *mut _ as *mut _);
+        println!("dcomp device ptr = {:?}", dcomp_device);
+
+        let mut dcomp_target: *mut IDCompositionTarget = null_mut();
+        (*dcomp_device).CreateTargetForHwnd(hwnd, TRUE, &mut dcomp_target);
+        println!("dcomp target ptr = {:?}", dcomp_target);
+
+        let mut visual: *mut IDCompositionVisual = null_mut();
+        (*dcomp_device).CreateVisual(&mut visual);
+        println!("visual ptr = {:?}", visual);
+
+        let mut surface: *mut IDCompositionVirtualSurface = null_mut();
+        (*dcomp_device).CreateVirtualSurface(width as u32, height as u32, DXGI_FORMAT_B8G8R8A8_UNORM,
+            DXGI_ALPHA_MODE_IGNORE, &mut surface);
+
+
+        let mut dc: *mut ID2D1DeviceContext = null_mut();
+        let mut offset: POINT = mem::zeroed();
+        let hr = (*surface).BeginDraw(null(), &ID2D1DeviceContext::uuidof(),
+            &mut dc as *mut _ as *mut _, &mut offset);
+        println!("begindraw hr=0x{:x}, offset={},{}", hr, offset.x, offset.y);
+
+
+        let mut brush: *mut ID2D1SolidColorBrush = null_mut();
+        let color = D2D1_COLOR_F { r: 0.0, g: 1.0, b: 0.0, a: 1.0 };
+        let hr = (*dc).CreateSolidColorBrush(&color, null(), &mut brush);
+
+        (*dc).DrawLine(D2D1_POINT_2F { x: 0.0, y: 0.0}, 
+            D2D1_POINT_2F { x: 500.0, y: 400.0 }, brush as *mut ID2D1Brush, 1.0, null_mut());
+
+        (*brush).Release();
+
+        //(*dc).Clear(&color);
+
+        (*dc).Release();
+
+        (*surface).EndDraw();
+
+        let hr = (*visual).SetContent(surface as *mut IUnknown);
+        println!("SetContent result 0x{:x}", hr);
+        let hr = (*dcomp_target).SetRoot(visual);
+        println!("SetRoot result 0x{:x}", hr);
+        (*dcomp_device).Commit();
+
+        main_win.set(dcomp_device, surface);
+
+        /*
         let mut factory: *mut IDXGIFactory2 = null_mut();
         let hres = CreateDXGIFactory2(0, &IID_IDXGIFactory2,
             &mut factory as *mut *mut IDXGIFactory2 as *mut *mut c_void);
@@ -372,7 +487,7 @@ fn create_main() -> Result<HWND, Error> {
         println!("render target view pointer = {:?}", rt_view);
         */
 
-        main_win.set_swap_chain(swap_chain);
+        */
 
         Ok(hwnd)
     }

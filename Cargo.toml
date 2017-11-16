@@ -17,7 +17,7 @@ libloading = "0.3"
 [dependencies.winapi]
 git = "https://github.com/retep998/winapi-rs.git"
 branch = "dev"
-features = ["d2d1_1", "dwrite", "winbase", "libloaderapi", "errhandlingapi", "winuser", "dxgi1_3", "d3d11", "shellscalingapi"]
+features = ["d2d1_1", "dwrite", "winbase", "libloaderapi", "errhandlingapi", "winuser", "dxgi1_3", "d3d11", "shellscalingapi", "dcomp"]
 
 [build-dependencies]
 winapi-build = "0.1"
