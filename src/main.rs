@@ -30,10 +30,12 @@ use winapi::shared::windef::*;
 use winapi::shared::winerror::*;
 use winapi::um::d2d1::*;
 use winapi::um::d2d1_1::*;
+use winapi::um::d2dbasetypes::*;
 use winapi::um::d3d11::*;
 use winapi::um::d3dcommon::*;
 use winapi::um::dcommon::*;
 use winapi::um::dcomp::*;
+use winapi::um::dcompanimation::*;
 use winapi::um::wingdi::*;
 use winapi::um::winuser::*;
 use winapi::um::unknwnbase::*;
@@ -60,6 +62,7 @@ struct MainWinState {
     resources: Option<Resources>,
     dcomp_device: *mut IDCompositionDevice,
     surface: *mut IDCompositionVirtualSurface,
+    visual: *mut IDCompositionVisual,
 }
 
 impl MainWinState {
@@ -71,6 +74,7 @@ impl MainWinState {
             resources: None,
             dcomp_device: null_mut(),
             surface: null_mut(),
+            visual: null_mut(),
         }
     }
 
@@ -104,9 +108,11 @@ impl MainWinState {
     }
     */
 
-    fn set(&mut self, dcomp_device: *mut IDCompositionDevice, surface: *mut IDCompositionVirtualSurface) {
+    fn set(&mut self, dcomp_device: *mut IDCompositionDevice, surface: *mut IDCompositionVirtualSurface,
+        visual: *mut IDCompositionVisual) {
         self.dcomp_device = dcomp_device;
         self.surface = surface;
+        self.visual = visual;
     }
 
     fn render(&mut self, indicator: bool) {
@@ -227,6 +233,18 @@ impl WndProc for MainWin {
                 let width = lparam & 0xffff;
                 let height = lparam >> 16;
                 (*state.surface).Resize(width as u32, height as u32);
+
+                /*
+                //(*state.visual).SetOffsetY1(height as f32 - 50.0);
+                let mut anim: *mut IDCompositionAnimation = null_mut();
+                (*state.dcomp_device).CreateAnimation(&mut anim);
+                (*anim).End(0.0, (lparam >> 16) as f32 - 50.0);
+                (*state.visual).SetOffsetY2(anim);
+                (*anim).Release();
+                */
+
+                //let transform = D2D_MATRIX_3X2_F { matrix: [[0.5, 0.0], [0.0, 0.5], [0.0, 10.0]] };
+                //;(*state.visual).SetTransform1(&transform);
                 /*
                 state.render_target = None;
                 let res = (*state.swap_chain).ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
@@ -259,8 +277,9 @@ impl WndProc for MainWin {
         }
     }
 
-    fn set(&self, dcomp_device: *mut IDCompositionDevice, surface: *mut IDCompositionVirtualSurface) {
-        self.state.borrow_mut().set(dcomp_device, surface);
+    fn set(&self, dcomp_device: *mut IDCompositionDevice, surface: *mut IDCompositionVirtualSurface,
+        visual: *mut IDCompositionVisual) {
+        self.state.borrow_mut().set(dcomp_device, surface, visual);
     }
 }
 
@@ -346,7 +365,7 @@ fn create_main() -> Result<HWND, Error> {
         let cursor = LoadCursorW(0 as HINSTANCE, IDC_IBEAM);
         let brush = CreateSolidBrush(0x00ff00);
         let wnd = WNDCLASSW {
-            style: CS_HREDRAW,
+            style: CS_HREDRAW | CS_VREDRAW,
             lpfnWndProc: Some(window::win_proc_dispatch),
             cbClsExtra: 0,
             cbWndExtra: 0,
@@ -440,9 +459,10 @@ fn create_main() -> Result<HWND, Error> {
         println!("SetContent result 0x{:x}", hr);
         let hr = (*dcomp_target).SetRoot(visual);
         println!("SetRoot result 0x{:x}", hr);
+
         (*dcomp_device).Commit();
 
-        main_win.set(dcomp_device, surface);
+        main_win.set(dcomp_device, surface, visual);
 
         /*
         let mut factory: *mut IDXGIFactory2 = null_mut();

@@ -15,7 +15,8 @@ pub trait WndProc {
     fn window_proc(&self, hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT>;
 
     // This clearly doesn't belong here but is expedient while we experiment with state wiring.
-    fn set(&self, dcomp_device: *mut IDCompositionDevice, surface: *mut IDCompositionVirtualSurface);
+    fn set(&self, dcomp_device: *mut IDCompositionDevice, surface: *mut IDCompositionVirtualSurface,
+        visual: *mut IDCompositionVisual);
 }
 
 pub unsafe extern "system" fn win_proc_dispatch(hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM)
