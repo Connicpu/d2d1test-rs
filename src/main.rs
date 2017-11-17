@@ -147,6 +147,35 @@ impl MainWinState {
             self.render_target = None;
         }
     }
+
+    fn render_dcomp(&mut self, width: u32, height: u32) {
+        unsafe {
+            let mut dc: *mut ID2D1DeviceContext = null_mut();
+            let mut offset: POINT = mem::zeroed();
+            let hr = (*self.surface).BeginDraw(null(), &ID2D1DeviceContext::uuidof(),
+                &mut dc as *mut _ as *mut _, &mut offset);
+            //println!("begindraw hr=0x{:x}, offset={},{}", hr, offset.x, offset.y);
+
+            let mut brush: *mut ID2D1SolidColorBrush = null_mut();
+            let color = D2D1_COLOR_F { r: 0.0, g: 1.0, b: 0.0, a: 1.0 };
+            let hr = (*dc).CreateSolidColorBrush(&color, null(), &mut brush);
+
+            let black = D2D1_COLOR_F { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
+            (*dc).Clear(&black);
+
+            (*dc).DrawLine(D2D1_POINT_2F { x: offset.x as f32, y: offset.y as f32},
+                D2D1_POINT_2F { x: offset.x as f32 + width as f32, y: offset.y as f32 + height as f32 },
+                brush as *mut ID2D1Brush, 1.0, null_mut());
+
+            (*brush).Release();
+
+
+            (*dc).Release();
+
+            //::std::thread::sleep(::std::time::Duration::from_millis(100));
+            (*self.surface).EndDraw();
+        }
+    }
 }
 
 struct MainWin {
@@ -171,39 +200,37 @@ impl WndProc for MainWin {
                 PostQuitMessage(0);
                 None
             },
+            WM_WINDOWPOSCHANGING =>  unsafe {
+                let windowpos = &*(lparam as *const WINDOWPOS);
+                //println!("windowposchanging: {} x {}", windowpos.cx, windowpos.cy);
+                if windowpos.cx != 0 && windowpos.cy != 0 {
+                    let width = windowpos.cx as u32 - 26;
+                    let height = windowpos.cy as u32 - 71;
+                    let mut state = self.state.borrow_mut();
+                    (*state.surface).Resize(width as u32, height as u32);
+                    state.render_dcomp(width as u32, height as u32);
+                }
+                Some(0)
+            },
+            WM_WINDOWPOSCHANGED =>  unsafe {
+                let windowpos = &*(lparam as *const WINDOWPOS);
+                //println!("windowposchanged: {} x {}", windowpos.cx, windowpos.cy);
+                let mut state = self.state.borrow_mut();
+                (*state.dcomp_device).Commit();
+                Some(0)
+            },
             WM_PAINT => unsafe {
                 //println!("WM_PAINT");
+
+                /*
                 let mut rect = mem::zeroed();
                 GetClientRect(hwnd, &mut rect);
                 let mut state = self.state.borrow_mut();
 
-                let mut dc: *mut ID2D1DeviceContext = null_mut();
-                let mut offset: POINT = mem::zeroed();
-                let hr = (*state.surface).BeginDraw(null(), &ID2D1DeviceContext::uuidof(),
-                    &mut dc as *mut _ as *mut _, &mut offset);
-                println!("begindraw hr=0x{:x}, offset={},{}", hr, offset.x, offset.y);
-
-
-                let mut brush: *mut ID2D1SolidColorBrush = null_mut();
-                let color = D2D1_COLOR_F { r: 0.0, g: 1.0, b: 0.0, a: 1.0 };
-                let hr = (*dc).CreateSolidColorBrush(&color, null(), &mut brush);
-
-                let black = D2D1_COLOR_F { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
-                (*dc).Clear(&black);
-
-                (*dc).DrawLine(D2D1_POINT_2F { x: offset.x as f32, y: offset.y as f32},
-                    D2D1_POINT_2F { x: offset.x as f32 + rect.right as f32, y: offset.y as f32 + rect.bottom as f32 },
-                    brush as *mut ID2D1Brush, 1.0, null_mut());
-
-                (*brush).Release();
-
-
-                (*dc).Release();
-
-                //::std::thread::sleep(::std::time::Duration::from_millis(100));
-                (*state.surface).EndDraw();
+                state.render_dcomp(rect.right as u32, rect.bottom as u32);
 
                 (*state.dcomp_device).Commit();
+                */
 
                 /*
                 let mut dcd2: *mut IDCompositionDevice2 = null_mut();
@@ -229,10 +256,12 @@ impl WndProc for MainWin {
                 Some(0)
             },
             WM_SIZE => unsafe {
+                /*
                 let mut state = self.state.borrow_mut();
                 let width = lparam & 0xffff;
                 let height = lparam >> 16;
                 (*state.surface).Resize(width as u32, height as u32);
+                */
 
                 /*
                 //(*state.visual).SetOffsetY1(height as f32 - 50.0);
@@ -258,8 +287,8 @@ impl WndProc for MainWin {
                     println!("ResizeBuffers failed: 0x{:x}", res);
                 }
                 */
-                //println!("size {} x {} {:?}", LOWORD(lparam as u32), HIWORD(lparam as u32),
-                //    self.clock.elapsed());
+                println!("size {} x {} {:?}", LOWORD(lparam as u32), HIWORD(lparam as u32),
+                    self.clock.elapsed());
                 /*
                 state.render_target.as_mut().and_then(|rt|
                     rt.hwnd_rt().map(|hrt|
@@ -365,7 +394,7 @@ fn create_main() -> Result<HWND, Error> {
         let cursor = LoadCursorW(0 as HINSTANCE, IDC_IBEAM);
         let brush = CreateSolidBrush(0x00ff00);
         let wnd = WNDCLASSW {
-            style: CS_HREDRAW | CS_VREDRAW,
+            style: 0,
             lpfnWndProc: Some(window::win_proc_dispatch),
             cbClsExtra: 0,
             cbWndExtra: 0,
