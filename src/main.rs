@@ -11,6 +11,7 @@ mod util;
 mod window;
 
 use std::cell::RefCell;
+use std::convert::From;
 use std::mem;
 use std::ptr::{null, null_mut};
 use std::rc::Rc;
@@ -40,7 +41,7 @@ use winapi::um::wingdi::*;
 use winapi::um::winuser::*;
 use winapi::um::unknwnbase::*;
 
-use direct2d::{RenderTarget, brush};
+use direct2d::{RenderTarget, brush, comptr};
 use direct2d::math::*;
 use direct2d::render_target::{DrawTextOption, RenderTargetBacking};
 use directwrite::text_format::{self, TextFormat};
@@ -65,6 +66,21 @@ struct MainWinState {
     visual: *mut IDCompositionVisual,
 }
 
+fn create_resources(dwrite_factory: &directwrite::Factory, rt: &RenderTarget)
+    -> Resources
+{
+    let text_format_params = text_format::ParamBuilder::new()
+        .size(15.0)
+        .family("Consolas")
+        .build().unwrap();
+    let text_format = dwrite_factory.create(text_format_params).unwrap();
+    Resources {
+        fg: rt.create_solid_color_brush(0xf0f0ea, &BrushProperties::default()).unwrap(),
+        bg: rt.create_solid_color_brush(0x272822, &BrushProperties::default()).unwrap(),
+        text_format: text_format,
+    }
+}
+
 impl MainWinState {
     fn new() -> MainWinState {
         MainWinState {
@@ -75,20 +91,6 @@ impl MainWinState {
             dcomp_device: null_mut(),
             surface: null_mut(),
             visual: null_mut(),
-        }
-    }
-
-    fn create_resources(&mut self) -> Resources {
-        let rt = self.render_target.as_mut().unwrap();
-        let text_format_params = text_format::ParamBuilder::new()
-            .size(15.0)
-            .family("Consolas")
-            .build().unwrap();
-        let text_format = self.dwrite_factory.create(text_format_params).unwrap();
-        Resources {
-            fg: rt.create_solid_color_brush(0xf0f0ea, &BrushProperties::default()).unwrap(),
-            bg: rt.create_solid_color_brush(0x272822, &BrushProperties::default()).unwrap(),
-            text_format: text_format,
         }
     }
 
@@ -117,11 +119,11 @@ impl MainWinState {
 
     fn render(&mut self, indicator: bool) {
         let res = {
+            let rt = self.render_target.as_mut().unwrap();
             if self.resources.is_none() {
-                self.resources = Some(self.create_resources());
+                self.resources = Some(create_resources(&self.dwrite_factory, &rt));
             }
             let resources = &self.resources.as_ref().unwrap();
-            let rt = self.render_target.as_mut().unwrap();
             rt.begin_draw();
             let size = rt.get_size();
             let rect = RectF::from((0.0, 0.0, size.width, size.height));
@@ -154,23 +156,37 @@ impl MainWinState {
             let mut offset: POINT = mem::zeroed();
             let hr = (*self.surface).BeginDraw(null(), &ID2D1DeviceContext::uuidof(),
                 &mut dc as *mut _ as *mut _, &mut offset);
-            //println!("begindraw hr=0x{:x}, offset={},{}", hr, offset.x, offset.y);
+            if !SUCCEEDED(hr) {
+                println!("error in BeginDraw: 0x{:x}", hr);
+                return;
+            }
+            let backing = DcBacking(dc);
+            let mut rt = self.d2d_factory.create_render_target(backing).unwrap();
 
-            let mut brush: *mut ID2D1SolidColorBrush = null_mut();
-            let color = D2D1_COLOR_F { r: 0.0, g: 1.0, b: 0.0, a: 1.0 };
-            let hr = (*dc).CreateSolidColorBrush(&color, null(), &mut brush);
+            rt.set_transform(&Matrix3x2F::new([[2.0, 0.0], [0.0, 2.0], [offset.x as f32, offset.y as f32]]));
 
-            let black = D2D1_COLOR_F { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
-            (*dc).Clear(&black);
+            if self.resources.is_none() {
+                self.resources = Some(create_resources(&self.dwrite_factory, &rt));
+            }
+            let resources = &self.resources.as_ref().unwrap();
 
-            (*dc).DrawLine(D2D1_POINT_2F { x: offset.x as f32, y: offset.y as f32},
-                D2D1_POINT_2F { x: offset.x as f32 + width as f32, y: offset.y as f32 + height as f32 },
-                brush as *mut ID2D1Brush, 1.0, null_mut());
+            let rect = RectF::from((0.0, 0.0, width as f32, height as f32));
+            rt.fill_rectangle(&rect, &resources.bg);
 
-            (*brush).Release();
-
-
-            (*dc).Release();
+            let msg = "Hello DWrite! This is a somewhat longer string of text intended to provoke slightly longer draw times.";
+            let dy = 15.0;
+            let x0 = 10.0;
+            let y0 = 10.0;
+            for i in 0..60 {
+                let y = y0 + (i as f32) * dy;
+                rt.draw_text(
+                    msg,
+                    &resources.text_format,
+                    &RectF::from((x0, y, x0 + 900.0, y + 80.0)),
+                    &resources.fg,
+                    &[DrawTextOption::EnableColorFont]
+                );
+            }
 
             //::std::thread::sleep(::std::time::Duration::from_millis(100));
             (*self.surface).EndDraw();
@@ -321,6 +337,22 @@ fn from_wide(wstr: &[u16]) -> String {
         }
     }
     result
+}
+
+struct DcBacking(*mut ID2D1DeviceContext);
+unsafe impl RenderTargetBacking for DcBacking {
+    fn create_target(self, _factory: &mut ID2D1Factory1) -> Result<*mut ID2D1RenderTarget, HRESULT> {
+        unsafe {
+            let mut render_target: *mut ID2D1RenderTarget = null_mut();
+            let hr = (*self.0).QueryInterface(&ID2D1RenderTarget::uuidof(),
+                &mut render_target as *mut _ as *mut _);
+            if SUCCEEDED(hr) {
+                Ok(render_target)
+            } else {
+                Err(hr)
+            }
+        }
+    }
 }
 
 struct DxgiBacking(*mut IDXGISurface);

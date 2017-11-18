@@ -26,4 +26,5 @@ winapi-build = "0.1"
 git = "https://github.com/Connicpu/directwrite-rs.git"
 
 [patch.crates-io.direct2d]
-git = "https://github.com/Connicpu/direct2d-rs.git"
+# git = "https://github.com/Connicpu/direct2d-rs.git"
+path = "../direct2d-rs"
