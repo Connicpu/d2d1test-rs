@@ -16,6 +16,7 @@ use winapi::um::d3d11::*;
 use winapi::um::d3dcommon::D3D_DRIVER_TYPE_HARDWARE;
 use winapi::um::unknwnbase::IUnknown;
 use winapi::um::dcomp::*;
+use winapi::um::dcompanimation::*;
 use winapi::um::winnt::HRESULT;
 
 use direct2d::{self, RenderTarget};
@@ -181,6 +182,28 @@ impl DCompositionVisual {
     pub fn set_content<T: Content>(&mut self, content: &mut T) -> Result<(), HRESULT> {
         unsafe {
             unit_err(self.0.SetContent(content.unknown_ptr()))
+        }
+    }
+
+    pub fn set_pos(&mut self, dcomp_device: &DCompositionDevice, x: f32, y: f32) {
+        unsafe {
+            // This will work now.
+            //self.0.SetOffsetX(x);
+            //self.0.SetOffsetY(y);
+
+            let mut anim: *mut IDCompositionAnimation = null_mut();
+            dcomp_device.0.CreateAnimation(&mut anim);
+            //(*anim).End(0.0, x);
+            //(*anim).AddSinusoidal(0.0, x, 100.0, 1.0, 0.0);
+            (*anim).AddCubic(0.0, x, 100.0, 0.0, 0.0);
+            (*self.0).SetOffsetX_2(anim);
+            (*anim).Release();
+
+            let mut anim: *mut IDCompositionAnimation = null_mut();
+            dcomp_device.0.CreateAnimation(&mut anim);
+            (*anim).End(0.0, y);
+            (*self.0).SetOffsetY_2(anim);
+            (*anim).Release();
         }
     }
 }

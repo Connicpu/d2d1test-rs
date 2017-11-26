@@ -140,10 +140,15 @@ impl WndProc for MainWin {
             },
             WM_WINDOWPOSCHANGING =>  unsafe {
                 let windowpos = &*(lparam as *const WINDOWPOS);
-                println!("windowposchanging: {} x {}", windowpos.cx, windowpos.cy);
                 if windowpos.cx != 0 && windowpos.cy != 0 {
-                    let width = windowpos.cx as u32 - 26;
-                    let height = windowpos.cy as u32 - 71;
+                    let mut rect = mem::zeroed();
+                    GetWindowRect(hwnd, &mut rect);
+                    let mut client_rect = mem::zeroed();
+                    GetClientRect(hwnd, &mut client_rect);
+                    let width_pad = rect.right - rect.left - client_rect.right;
+                    let height_pad = rect.bottom - rect.top - client_rect.bottom;
+                    let width = (windowpos.cx - width_pad) as u32;
+                    let height = (windowpos.cy - height_pad) as u32;
                     let mut state = self.state.borrow_mut();
                     state.stuff.as_mut().unwrap().surface
                         .resize(width as u32, height as u32).unwrap();
@@ -152,94 +157,26 @@ impl WndProc for MainWin {
                 }
                 Some(0)
             },
-            WM_WINDOWPOSCHANGED =>  unsafe {
-                let windowpos = &*(lparam as *const WINDOWPOS);
-                //println!("windowposchanged: {} x {}", windowpos.cx, windowpos.cy);
-                let mut state = self.state.borrow_mut();
-                Some(0)
-            },
             WM_PAINT => unsafe {
                 //println!("WM_PAINT");
 
-                /*
-                let mut rect = mem::zeroed();
-                GetClientRect(hwnd, &mut rect);
-                let mut state = self.state.borrow_mut();
-
-                state.render_dcomp(rect.right as u32, rect.bottom as u32);
-
-                (*state.dcomp_device).Commit();
-                */
-
-                /*
-                let mut dcd2: *mut IDCompositionDevice2 = null_mut();
-                (*state.dcomp_device).QueryInterface(&IDCompositionDevice2::uuidof(), &mut dcd2 as *mut _ as *mut _);
-                (*dcd2).WaitForCommitCompletion();
-                (*dcd2).Release();
-                */
-
-                /*
-                if state.render_target.is_none() {
-                    let mut rect: RECT = mem::uninitialized();
-                    GetClientRect(hwnd, &mut rect);
-                    //println!("rect={:?}", rect);
-                    let width = (rect.right - rect.left) as u32;
-                    let height = (rect.bottom - rect.top) as u32;
-                    let params = HwndRtParams { hwnd: hwnd, width: width, height: height };
-                    state.render_target = state.d2d_factory.create_render_target(params).ok();
-                }
-                state.render(true);
-                (*state.swap_chain).Present(1, 0);
-                */
                 ValidateRect(hwnd, null());
                 Some(0)
             },
             WM_SIZE => unsafe {
-                /*
-                let mut state = self.state.borrow_mut();
-                let width = lparam & 0xffff;
-                let height = lparam >> 16;
-                (*state.surface).Resize(width as u32, height as u32);
-                */
-
-                /*
-                //(*state.visual).SetOffsetY1(height as f32 - 50.0);
-                let mut anim: *mut IDCompositionAnimation = null_mut();
-                (*state.dcomp_device).CreateAnimation(&mut anim);
-                (*anim).End(0.0, (lparam >> 16) as f32 - 50.0);
-                (*state.visual).SetOffsetY2(anim);
-                (*anim).Release();
-                */
-
-                //let transform = D2D_MATRIX_3X2_F { matrix: [[0.5, 0.0], [0.0, 0.5], [0.0, 10.0]] };
-                //;(*state.visual).SetTransform1(&transform);
-                /*
-                state.render_target = None;
-                let res = (*state.swap_chain).ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
-                if SUCCEEDED(res) {
-                    state.rebuild_render_target();
-                    //state.render(true);
-                    //(*state.swap_chain).Present(0, 0);
-                    InvalidateRect(hwnd, null_mut(), FALSE);
-                    //ValidateRect(hwnd, null_mut());
-                } else {
-                    println!("ResizeBuffers failed: 0x{:x}", res);
-                }
-                */
                 println!("size {} x {} {:?}", LOWORD(lparam as u32), HIWORD(lparam as u32),
                     self.clock.elapsed());
-                /*
-                state.render_target.as_mut().and_then(|rt|
-                    rt.hwnd_rt().map(|hrt|
-                        hrt.Resize(&D2D1_SIZE_U {
-                            width: LOWORD(lparam as u32) as u32,
-                            height: HIWORD(lparam as u32) as u32,
-                        })
-                    )
-                );
-                */
                 Some(1)
             },
+            WM_MOUSEMOVE => {
+                let x = LOWORD(lparam as u32);
+                let y = HIWORD(lparam as u32);
+                let mut state = self.state.borrow_mut();
+                let stuff = state.stuff.as_mut().unwrap();
+                stuff.visual.set_pos(&stuff.dcomp_device, x as f32, y as f32);
+                stuff.dcomp_device.commit();
+                Some(0)
+            }
             WM_ERASEBKGND => Some(1),
             _ => None
         }

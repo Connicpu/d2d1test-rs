@@ -8,9 +8,9 @@ name = "d2d1test-rs"
 version = "0.1.0"
 dependencies = [
  "direct2d 0.0.7",
- "directwrite 0.0.7 (git+https://github.com/Connicpu/directwrite-rs.git)",
+ "directwrite 0.0.7",
  "libloading 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "winapi 0.3.0-alpha.0 (git+https://github.com/retep998/winapi-rs.git?branch=dev)",
+ "winapi 0.3.0-alpha.0",
  "winapi-build 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -18,18 +18,17 @@ dependencies = [
 name = "direct2d"
 version = "0.0.7"
 dependencies = [
- "directwrite 0.0.7 (git+https://github.com/Connicpu/directwrite-rs.git)",
+ "directwrite 0.0.7",
  "uuid 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "winapi 0.3.0-alpha.0 (git+https://github.com/retep998/winapi-rs.git?branch=dev)",
+ "winapi 0.3.0-alpha.0",
 ]
 
 [[package]]
 name = "directwrite"
 version = "0.0.7"
-source = "git+https://github.com/Connicpu/directwrite-rs.git#4f1fe1d1c2e047452241838944a167d0e60fc4e3"
 dependencies = [
  "uuid 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "winapi 0.3.0-alpha.0 (git+https://github.com/retep998/winapi-rs.git?branch=dev)",
+ "winapi 0.3.0-alpha.0",
 ]
 
 [[package]]
@@ -69,7 +68,7 @@ dependencies = [
 
 [[package]]
 name = "lazy_static"
-version = "0.2.9"
+version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -83,7 +82,7 @@ version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "lazy_static 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "target_build_utils 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -180,10 +179,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "winapi"
 version = "0.3.0-alpha.0"
-source = "git+https://github.com/retep998/winapi-rs.git?branch=dev#7338a5216a6a7abeefcc6bb1bc34381c81d3e247"
 dependencies = [
- "winapi-i686-pc-windows-gnu 0.3.1 (git+https://github.com/retep998/winapi-rs.git?branch=dev)",
- "winapi-x86_64-pc-windows-gnu 0.3.1 (git+https://github.com/retep998/winapi-rs.git?branch=dev)",
+ "winapi-i686-pc-windows-gnu 0.3.1",
+ "winapi-x86_64-pc-windows-gnu 0.3.1",
 ]
 
 [[package]]
@@ -194,22 +192,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "winapi-i686-pc-windows-gnu"
 version = "0.3.1"
-source = "git+https://github.com/retep998/winapi-rs.git?branch=dev#7338a5216a6a7abeefcc6bb1bc34381c81d3e247"
 
 [[package]]
 name = "winapi-x86_64-pc-windows-gnu"
 version = "0.3.1"
-source = "git+https://github.com/retep998/winapi-rs.git?branch=dev#7338a5216a6a7abeefcc6bb1bc34381c81d3e247"
 
 [metadata]
 "checksum bitflags 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "aad18937a628ec6abcd26d1489012cc0e18c21798210f491af69ded9b881106d"
-"checksum directwrite 0.0.7 (git+https://github.com/Connicpu/directwrite-rs.git)" = "<none>"
 "checksum dtoa 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "09c3753c3db574d215cba4ea76018483895d7bff25a31b49ba45db21c48e50ab"
 "checksum fuchsia-zircon 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "f6c0581a4e363262e52b87f59ee2afe3415361c6ec35e665924eb08afe8ff159"
 "checksum fuchsia-zircon-sys 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "43f3795b4bae048dc6123a6b972cadde2e676f9ded08aef6bb77f5f157684a82"
 "checksum itoa 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)" = "8324a32baf01e2ae060e9de58ed0bc2320c9a2833491ee36cd3b4c414de4db8c"
 "checksum kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
-"checksum lazy_static 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)" = "c9e5e58fa1a4c3b915a561a78a22ee0cac6ab97dca2504428bc1cb074375f8d5"
+"checksum lazy_static 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)" = "236eb37a62591d4a41a89b7763d7de3e06ca02d5ab2815446a8bae5d2f8c2d57"
 "checksum libc 0.2.33 (registry+https://github.com/rust-lang/crates.io-index)" = "5ba3df4dcb460b9dfbd070d41c94c19209620c191b0340b929ce748a2bcd42d2"
 "checksum libloading 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)" = "0a020ac941774eb37e9d13d418c37b522e76899bfc4e7b1a600d529a53f83a66"
 "checksum num-traits 0.1.40 (registry+https://github.com/rust-lang/crates.io-index)" = "99843c856d68d8b4313b03a17e33c4bb42ae8f6610ea81b28abe076ac721b9b0"
@@ -224,7 +219,4 @@ source = "git+https://github.com/retep998/winapi-rs.git?branch=dev#7338a5216a6a7
 "checksum target_build_utils 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "013d134ae4a25ee744ad6129db589018558f620ddfa44043887cdd45fa08e75c"
 "checksum uuid 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7cfec50b0842181ba6e713151b72f4ec84a6a7e2c9c8a8a3ffc37bb1cd16b231"
 "checksum winapi 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)" = "167dc9d6949a9b857f3451275e911c3f44255842c1f7a76f33c55103a909087a"
-"checksum winapi 0.3.0-alpha.0 (git+https://github.com/retep998/winapi-rs.git?branch=dev)" = "<none>"
 "checksum winapi-build 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "2d315eee3b34aca4797b2da6b13ed88266e6d612562a0c46390af8299fc699bc"
-"checksum winapi-i686-pc-windows-gnu 0.3.1 (git+https://github.com/retep998/winapi-rs.git?branch=dev)" = "<none>"
-"checksum winapi-x86_64-pc-windows-gnu 0.3.1 (git+https://github.com/retep998/winapi-rs.git?branch=dev)" = "<none>"
