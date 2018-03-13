@@ -80,7 +80,7 @@ unsafe impl RenderTargetBacking for DxgiBacking {
 
             let mut render_target: *mut ID2D1RenderTarget = null_mut();
             let res = factory.CreateDxgiSurfaceRenderTarget(self.0, &props, &mut render_target);
-            println!("surface render target res=0x{:x}, ptr = {:?}", res, render_target);
+            //println!("surface render target res=0x{:x}, ptr = {:?}", res, render_target);
             if SUCCEEDED(res) {
                 //(*render_target).SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
                 Ok(render_target)
@@ -88,30 +88,6 @@ unsafe impl RenderTargetBacking for DxgiBacking {
                 Err(res)
             }
 
-            /*
-            let mut device_context: *mut ID2D1DeviceContext = null_mut();
-            let res = (*device).CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &mut device_context);
-            println!("device context res=0x{:x}, ptr = {:?}", res, device_context);
-            let mut bitmap: *mut ID2D1Bitmap1 = null_mut();
-            let bitmap_props = D2D1_BITMAP_PROPERTIES1 {
-                pixelFormat: D2D1_PIXEL_FORMAT {
-                    format: DXGI_FORMAT_UNKNOWN,
-                    alphaMode: D2D1_ALPHA_MODE_IGNORE,
-                },
-                dpiX: 0.0,
-                dpiY: 0.0,
-                bitmapOptions: D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
-                colorContext: null(),
-            };
-            let res = (*device_context).CreateBitmapFromDxgiSurface(self.0, &bitmap_props, &mut bitmap);
-            println!("bitmap res = 0x{:x}, ptr = {:?}", res, bitmap);
-
-            let buf = [0xffu8; 256];
-            let rect = D2D1_RECT_U { left: 0, top: 0, right: 8, bottom: 8};
-            (*bitmap).CopyFromMemory(&rect, &buf as *const _ as *const c_void, 32);
-            (*bitmap).Release();
-            Err(0)
-            */
         }
     }
 }
@@ -174,7 +150,6 @@ impl MainWinState {
 
     fn set(&mut self, stuff: Stuff) {
         self.stuff = Some(stuff);
-        self.rebuild_render_target();
     }
 
     fn render_dcomp(&mut self, width: u32, height: u32) {
@@ -266,9 +241,9 @@ impl WndProc for MainWin {
                 PostQuitMessage(0);
                 None
             },
-            /*
             WM_WINDOWPOSCHANGING =>  unsafe {
                 let windowpos = &*(lparam as *const WINDOWPOS);
+                //println!("WM_WINDOWPOSCHANGING {} {}", windowpos.cx, windowpos.cy);
                 if windowpos.cx != 0 && windowpos.cy != 0 {
                     let mut rect = mem::zeroed();
                     GetWindowRect(hwnd, &mut rect);
@@ -279,26 +254,35 @@ impl WndProc for MainWin {
                     let width = (windowpos.cx - width_pad) as u32;
                     let height = (windowpos.cy - height_pad) as u32;
                     let mut state = self.state.borrow_mut();
-                    state.stuff.as_mut().unwrap().surface
-                        .resize(width as u32, height as u32).unwrap();
-                    state.render_dcomp(width as u32, height as u32);
-                    state.stuff.as_mut().unwrap().dcomp_device.commit().unwrap();
+                    state.render_target = None;
+                    let res = (*state.stuff.as_mut().unwrap().swap_chain).ResizeBuffers(2, width, height, DXGI_FORMAT_UNKNOWN, 0);
+                    if SUCCEEDED(res) {
+                        state.rebuild_render_target();
+                        state.render(true);
+                        (*state.stuff.as_mut().unwrap().swap_chain).Present(0, 0);
+                        //InvalidateRect(hwnd, null_mut(), FALSE);
+                        //ValidateRect(hwnd, null_mut());
+                    } else {
+                        println!("ResizeBuffers failed: 0x{:x}", res);
+                    }
                 }
                 Some(0)
             },
-            */
             WM_PAINT => unsafe {
+                // A good case can be made this should be null.
                 println!("WM_PAINT");
                 let mut state = self.state.borrow_mut();
 
                 if state.render_target.is_none() {
-                    println!("WM_PAINT: render target  is None");
+                    println!("WM_PAINT: render target is None");
                     ValidateRect(hwnd, null());
                     return Some(0);
                 }
 
                 state.render(true);
-                (*state.stuff.as_mut().unwrap().swap_chain).Present(1, 0);
+                let stuff = state.stuff.as_mut().unwrap();
+                (*stuff.swap_chain).Present(1, 0);
+                stuff.dcomp_device.commit();
                 ValidateRect(hwnd, null());
                 Some(0)
             },
@@ -308,21 +292,39 @@ impl WndProc for MainWin {
                     println!("state is None");
                     return Some(1);
                 }
+                if state.render_target.is_none() {
+                    let width = LOWORD(lparam as u32) as u32;
+                    let height = HIWORD(lparam as u32) as u32;
+                    let res = (*state.stuff.as_mut().unwrap().swap_chain).ResizeBuffers(2, width, height, DXGI_FORMAT_UNKNOWN, 0);
+                    if SUCCEEDED(res) {
+                        state.rebuild_render_target();
+                        state.render(true);
+                        let stuff = state.stuff.as_mut().unwrap();
+                        (*stuff.swap_chain).Present(1, 0);
+                        stuff.dcomp_device.commit();
+                    } else {
+                        println!("ResizeBuffers failed: 0x{:x}", res);
+                    }
+                }
+                /*
                 state.render_target = None;
                 let width = LOWORD(lparam as u32) as u32;
                 let height = HIWORD(lparam as u32) as u32;
                 let res = (*state.stuff.as_mut().unwrap().swap_chain).ResizeBuffers(2, width, height, DXGI_FORMAT_UNKNOWN, 0);
                 if SUCCEEDED(res) {
                     state.rebuild_render_target();
-                    //state.render(true);
-                    //(*state.swap_chain).Present(0, 0);
-                    InvalidateRect(hwnd, null_mut(), FALSE);
-                    //ValidateRect(hwnd, null_mut());
+                    state.render(true);
+                    (*state.stuff.as_mut().unwrap().swap_chain).Present(1, 0);
+                    //InvalidateRect(hwnd, null_mut(), FALSE);
+                    ValidateRect(hwnd, null_mut());
                 } else {
                     println!("ResizeBuffers failed: 0x{:x}", res);
                 }
                 println!("size {} x {} {:?}", LOWORD(lparam as u32), HIWORD(lparam as u32),
                     self.clock.elapsed());
+                */
+                ValidateRect(hwnd, null_mut());
+                //InvalidateRect(hwnd, null_mut(), FALSE);
                 Some(1)
             },
             WM_MOUSEMOVE => {
