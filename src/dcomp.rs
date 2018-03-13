@@ -120,6 +120,10 @@ impl D3D11Device {
             wrap(hr, d2d1_device, D2D1Device)
         }
     }
+
+    pub fn raw_ptr(&mut self) -> *mut ID3D11Device {
+        self.0.deref_mut()
+    }
 }
 
 impl D2D1Device {
@@ -181,8 +185,13 @@ impl DCompositionTarget {
 impl DCompositionVisual {
     pub fn set_content<T: Content>(&mut self, content: &mut T) -> Result<(), HRESULT> {
         unsafe {
-            unit_err(self.0.SetContent(content.unknown_ptr()))
+            self.set_content_raw(content.unknown_ptr())
         }
+    }
+
+    // TODO: impl Content trait for swapchain, for type safety
+    pub unsafe fn set_content_raw(&mut self, content: *mut IUnknown) -> Result<(), HRESULT> {
+        unit_err(self.0.SetContent(content))
     }
 
     pub fn set_pos(&mut self, dcomp_device: &DCompositionDevice, x: f32, y: f32) {

@@ -19,15 +19,28 @@ use std::rc::Rc;
 use std::time::SystemTime;
 
 // probably should be more selective about these imports...
+use winapi::ctypes::c_void;
+use winapi::Interface;
+use winapi::shared::dxgi::*;
+use winapi::shared::dxgi1_2::*;
+use winapi::shared::dxgi1_3::*;
+use winapi::shared::dxgiformat::*;
+use winapi::shared::dxgitype::*;
 use winapi::shared::minwindef::*;
 use winapi::shared::ntdef::LPCWSTR;
 use winapi::shared::windef::*;
+use winapi::shared::winerror::*;
+use winapi::um::d2d1::*;
+use winapi::um::d2d1_1::*;
+use winapi::um::dcommon::*;
+use winapi::um::unknwnbase::IUnknown;
 use winapi::um::wingdi::*;
 use winapi::um::winuser::*;
 
 use direct2d::{RenderTarget, brush};
 use direct2d::math::*;
 use direct2d::render_target::DrawTextOption;
+use direct2d::render_target::RenderTargetBacking;
 use directwrite::text_format::{self, TextFormat};
 
 use util::{Error, ToWide};
@@ -39,16 +52,82 @@ struct Resources {
     text_format: TextFormat,
 }
 
+struct DxgiBacking(*mut IDXGISurface);
+
+unsafe impl RenderTargetBacking for DxgiBacking {
+    fn create_target(self, factory: &mut ID2D1Factory1) -> Result<*mut ID2D1RenderTarget, HRESULT> {
+        unsafe {
+            /*
+            let mut dxgi_device: *mut IDXGIDevice = null_mut();
+            (*self.1).QueryInterface(&IDXGIDevice::uuidof(), &mut dxgi_device as *mut _ as *mut _);
+            println!("dxgi device ptr = {:?}", dxgi_device);
+            //let mut d2d_device: &mut ID2D1Device = null_mut();
+            let mut device: *mut ID2D1Device = null_mut();
+            let res = factory.CreateDevice(dxgi_device, &mut device as *mut _);
+            println!("device res=0x{:x}, ptr = {:?}", res, device);
+            */
+            let props = D2D1_RENDER_TARGET_PROPERTIES {
+                _type: D2D1_RENDER_TARGET_TYPE_DEFAULT,
+                pixelFormat: D2D1_PIXEL_FORMAT {
+                    format: DXGI_FORMAT_B8G8R8A8_UNORM,
+                    alphaMode: D2D1_ALPHA_MODE_IGNORE,
+                },
+                dpiX: 192.0, // TODO: get this from window etc.
+                dpiY: 192.0,
+                usage: D2D1_RENDER_TARGET_USAGE_NONE,
+                minLevel: D2D1_FEATURE_LEVEL_DEFAULT,
+            };
+
+            let mut render_target: *mut ID2D1RenderTarget = null_mut();
+            let res = factory.CreateDxgiSurfaceRenderTarget(self.0, &props, &mut render_target);
+            println!("surface render target res=0x{:x}, ptr = {:?}", res, render_target);
+            if SUCCEEDED(res) {
+                //(*render_target).SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+                Ok(render_target)
+            } else {
+                Err(res)
+            }
+
+            /*
+            let mut device_context: *mut ID2D1DeviceContext = null_mut();
+            let res = (*device).CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &mut device_context);
+            println!("device context res=0x{:x}, ptr = {:?}", res, device_context);
+            let mut bitmap: *mut ID2D1Bitmap1 = null_mut();
+            let bitmap_props = D2D1_BITMAP_PROPERTIES1 {
+                pixelFormat: D2D1_PIXEL_FORMAT {
+                    format: DXGI_FORMAT_UNKNOWN,
+                    alphaMode: D2D1_ALPHA_MODE_IGNORE,
+                },
+                dpiX: 0.0,
+                dpiY: 0.0,
+                bitmapOptions: D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
+                colorContext: null(),
+            };
+            let res = (*device_context).CreateBitmapFromDxgiSurface(self.0, &bitmap_props, &mut bitmap);
+            println!("bitmap res = 0x{:x}, ptr = {:?}", res, bitmap);
+
+            let buf = [0xffu8; 256];
+            let rect = D2D1_RECT_U { left: 0, top: 0, right: 8, bottom: 8};
+            (*bitmap).CopyFromMemory(&rect, &buf as *const _ as *const c_void, 32);
+            (*bitmap).Release();
+            Err(0)
+            */
+        }
+    }
+}
+
 // Things that are passed in at window creation time
 pub struct Stuff {
     dcomp_device: dcomp::DCompositionDevice,
     surface: dcomp::DCompositionVirtualSurface,
-    visual: dcomp::DCompositionVisual,    
+    visual: dcomp::DCompositionVisual,
+    swap_chain: *mut IDXGISwapChain1,
 }
 
 struct MainWinState {
     d2d_factory: direct2d::Factory,
     dwrite_factory: directwrite::Factory,
+    render_target: Option<RenderTarget>,
     resources: Option<Resources>,
     stuff: Option<Stuff>,
 }
@@ -73,13 +152,29 @@ impl MainWinState {
         MainWinState {
             d2d_factory: direct2d::Factory::new().unwrap(),
             dwrite_factory: directwrite::Factory::new().unwrap(),
+            render_target: None,
             resources: None,
             stuff: None,
         }
     }
 
+    fn rebuild_render_target(&mut self) {
+        unsafe {
+            let mut buffer: *mut IDXGISurface = null_mut();
+            let res = (*self.stuff.as_mut().unwrap().swap_chain).GetBuffer(0, &IDXGISurface::uuidof(),
+                &mut buffer as *mut _ as *mut *mut c_void);
+            //println!("buffer res = 0x{:x}, pointer = {:?}", res, buffer);
+            if SUCCEEDED(res) {
+                let backing = DxgiBacking(buffer);
+                self.render_target = self.d2d_factory.create_render_target(backing).ok();
+                (*buffer).Release();
+            }
+        }
+    }
+
     fn set(&mut self, stuff: Stuff) {
         self.stuff = Some(stuff);
+        self.rebuild_render_target();
     }
 
     fn render_dcomp(&mut self, width: u32, height: u32) {
@@ -114,6 +209,39 @@ impl MainWinState {
 
         stuff.surface.end_draw().unwrap();
     }
+
+    fn render(&mut self, indicator: bool) {
+        let res = {
+            let rt = self.render_target.as_mut().unwrap();
+            if self.resources.is_none() {
+                self.resources = Some(create_resources(&self.dwrite_factory, &rt));
+            }
+            let resources = &self.resources.as_ref().unwrap();
+            rt.begin_draw();
+            let size = rt.get_size();
+            let rect = RectF::from((0.0, 0.0, size.width, size.height));
+            rt.fill_rectangle(&rect, &resources.bg);
+            if indicator {
+                rt.draw_line(&Point2F::from((0.0, 0.0)), &Point2F::from((size.width, size.height)),
+                    &resources.fg, 1.0, None);
+            }
+            let msg = "Hello DWrite! This is a somewhat longer string of text intended to provoke slightly longer draw times.";
+            let dy = 15.0;
+            for i in 0..60 {
+                rt.draw_text(
+                    msg,
+                    &resources.text_format,
+                    &RectF::from((10.0, 10.0 + (i as f32) * dy, 900.0, 90.0 + (i as f32) * dy)),
+                    &resources.fg,
+                    &[DrawTextOption::EnableColorFont]
+                );
+            }
+            rt.end_draw()
+        };
+        if res.is_err() {
+            self.render_target = None;
+        }
+    }
 }
 
 struct MainWin {
@@ -138,6 +266,7 @@ impl WndProc for MainWin {
                 PostQuitMessage(0);
                 None
             },
+            /*
             WM_WINDOWPOSCHANGING =>  unsafe {
                 let windowpos = &*(lparam as *const WINDOWPOS);
                 if windowpos.cx != 0 && windowpos.cy != 0 {
@@ -157,13 +286,41 @@ impl WndProc for MainWin {
                 }
                 Some(0)
             },
+            */
             WM_PAINT => unsafe {
-                //println!("WM_PAINT");
+                println!("WM_PAINT");
+                let mut state = self.state.borrow_mut();
 
+                if state.render_target.is_none() {
+                    println!("WM_PAINT: render target  is None");
+                    ValidateRect(hwnd, null());
+                    return Some(0);
+                }
+
+                state.render(true);
+                (*state.stuff.as_mut().unwrap().swap_chain).Present(1, 0);
                 ValidateRect(hwnd, null());
                 Some(0)
             },
             WM_SIZE => unsafe {
+                let mut state = self.state.borrow_mut();
+                if state.stuff.is_none() {
+                    println!("state is None");
+                    return Some(1);
+                }
+                state.render_target = None;
+                let width = LOWORD(lparam as u32) as u32;
+                let height = HIWORD(lparam as u32) as u32;
+                let res = (*state.stuff.as_mut().unwrap().swap_chain).ResizeBuffers(2, width, height, DXGI_FORMAT_UNKNOWN, 0);
+                if SUCCEEDED(res) {
+                    state.rebuild_render_target();
+                    //state.render(true);
+                    //(*state.swap_chain).Present(0, 0);
+                    InvalidateRect(hwnd, null_mut(), FALSE);
+                    //ValidateRect(hwnd, null_mut());
+                } else {
+                    println!("ResizeBuffers failed: 0x{:x}", res);
+                }
                 println!("size {} x {} {:?}", LOWORD(lparam as u32), HIWORD(lparam as u32),
                     self.clock.elapsed());
                 Some(1)
@@ -243,9 +400,38 @@ fn create_main() -> Result<HWND, Error> {
         let mut surface = dcomp_device.create_virtual_surface(width as u32, height as u32)?;
 
         visual.set_content(&mut surface)?;
-        dcomp_target.set_root(&mut visual)?;
+        //dcomp_target.set_root(&mut visual)?;
 
-        main_win.set(Stuff { dcomp_device, surface, visual });
+        let mut factory: *mut IDXGIFactory2 = null_mut();
+        let hres = CreateDXGIFactory2(0, &IID_IDXGIFactory2,
+            &mut factory as *mut *mut IDXGIFactory2 as *mut *mut c_void);
+        println!("dxgi factory pointer = {:?}", factory);
+        let desc = DXGI_SWAP_CHAIN_DESC1 {
+            Width: 1024,
+            Height: 768,
+            Format: DXGI_FORMAT_B8G8R8A8_UNORM,
+            Stereo: FALSE,
+            SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+            BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
+            BufferCount: 2,
+            Scaling: DXGI_SCALING_STRETCH,
+            SwapEffect: DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
+            AlphaMode: DXGI_ALPHA_MODE_IGNORE,
+            Flags: 0,
+        };
+        let mut swap_chain: *mut IDXGISwapChain1 = null_mut();
+        let hres = (*factory).CreateSwapChainForComposition(d3d11_device.raw_ptr() as *mut IUnknown, &desc,
+            null_mut(), &mut swap_chain);
+        println!("swap chain res = 0x{:x}, pointer = {:?}", hres, swap_chain);
+        let mut swapchain_visual = dcomp_device.create_visual()?;
+        swapchain_visual.set_content_raw(swap_chain as *mut IUnknown)?;
+
+        let color = DXGI_RGBA { r: 1.0, g: 0.0, b: 1.0, a: 1.0 };
+        (*swap_chain).SetBackgroundColor(&color);
+
+        dcomp_target.set_root(&mut swapchain_visual)?;
+
+        main_win.set(Stuff { dcomp_device, surface, visual, swap_chain });
 
         // TODO: maybe should store this in window state instead of leaking.
         mem::forget(dcomp_target);
