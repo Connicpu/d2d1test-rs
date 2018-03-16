@@ -45,6 +45,9 @@ use directwrite::text_format::{self, TextFormat};
 
 use util::{Error, ToWide};
 use window::{create_window, WndProc};
+extern "system" {
+    pub fn DwmFlush();
+}
 
 struct Resources {
     fg: brush::SolidColor,
@@ -241,6 +244,7 @@ impl WndProc for MainWin {
                 PostQuitMessage(0);
                 None
             },
+            /*
             WM_WINDOWPOSCHANGING =>  unsafe {
                 let windowpos = &*(lparam as *const WINDOWPOS);
                 //println!("WM_WINDOWPOSCHANGING {} {}", windowpos.cx, windowpos.cy);
@@ -261,13 +265,14 @@ impl WndProc for MainWin {
                         state.render(true);
                         (*state.stuff.as_mut().unwrap().swap_chain).Present(0, 0);
                         //InvalidateRect(hwnd, null_mut(), FALSE);
-                        //ValidateRect(hwnd, null_mut());
+                        ValidateRect(hwnd, null_mut());
                     } else {
                         println!("ResizeBuffers failed: 0x{:x}", res);
                     }
                 }
                 Some(0)
             },
+            */
             WM_PAINT => unsafe {
                 // A good case can be made this should be null.
                 println!("WM_PAINT");
@@ -292,6 +297,7 @@ impl WndProc for MainWin {
                     println!("state is None");
                     return Some(1);
                 }
+                state.render_target = None;
                 if state.render_target.is_none() {
                     let width = LOWORD(lparam as u32) as u32;
                     let height = HIWORD(lparam as u32) as u32;
@@ -300,13 +306,12 @@ impl WndProc for MainWin {
                         state.rebuild_render_target();
                         state.render(true);
                         let stuff = state.stuff.as_mut().unwrap();
-                        (*stuff.swap_chain).Present(1, 0);
+                        (*stuff.swap_chain).Present(0, 0);
                         stuff.dcomp_device.commit();
                     } else {
                         println!("ResizeBuffers failed: 0x{:x}", res);
                     }
                 }
-                /*
                 state.render_target = None;
                 let width = LOWORD(lparam as u32) as u32;
                 let height = HIWORD(lparam as u32) as u32;
@@ -322,7 +327,7 @@ impl WndProc for MainWin {
                 }
                 println!("size {} x {} {:?}", LOWORD(lparam as u32), HIWORD(lparam as u32),
                     self.clock.elapsed());
-                */
+                DwmFlush();
                 ValidateRect(hwnd, null_mut());
                 //InvalidateRect(hwnd, null_mut(), FALSE);
                 Some(1)
