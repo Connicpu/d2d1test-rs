@@ -1,8 +1,6 @@
 #![windows_subsystem = "windows"]
 
 extern crate winapi;
-extern crate user32;
-extern crate gdi32;
 extern crate direct2d;
 extern crate directwrite;
 
@@ -17,9 +15,15 @@ use std::mem;
 use std::ptr::null_mut;
 use std::rc::Rc;
 
-use user32::*;
-use winapi::*;
+use winapi::shared::minwindef::*;
+use winapi::shared::ntdef::LPCWSTR;
+use winapi::shared::windef::*;
+use winapi::um::d2d1::*;
+use winapi::um::wingdi::*;
+use winapi::um::winuser::*;
+
 use direct2d::{RenderTarget, brush};
+use direct2d::geometry::{FigureBegin, FigureEnd};
 use direct2d::math::*;
 use direct2d::render_target::DrawTextOption;
 use directwrite::text_format::{self, TextFormat};
@@ -78,6 +82,22 @@ impl MainWinState {
             rt.fill_rectangle(&rect, &resources.bg);
             rt.draw_line(&Point2F::from((10.0, 50.0)), &Point2F::from((90.0, 90.0)),
                 &resources.fg, 1.0, None);
+            let mut path = self.d2d_factory.create_path_geometry().unwrap();
+            {
+                let mut geom = path.open().unwrap();
+                let figure = geom.begin_figure((100.0, 50.0), FigureBegin::Hollow, FigureEnd::Open);
+                let figure = figure.add_bezier(&BezierSegment::new(Point2F::from((190.0, 70.0)),
+                    Point2F::from((90.0, 80.0)),
+                    Point2F::from((180.0, 60.0))));
+                let geom = figure.end();
+                let figure = geom.begin_figure((100.0, 70.0), FigureBegin::Hollow, FigureEnd::Open);
+                let figure = figure.add_bezier(&BezierSegment::new(Point2F::from((190.0, 90.0)),
+                    Point2F::from((90.0, 100.0)),
+                    Point2F::from((180.0, 80.0))));
+                let geom = figure.end();
+                geom.close();
+            }
+            rt.draw_geometry(&path, &resources.fg, 1.0, None);
             let msg = "Hello DWrite! 🐰🐇";
             rt.draw_text(
                 msg,
@@ -118,7 +138,7 @@ impl WndProc for MainWin {
                 let mut state = self.state.borrow_mut();
                 if state.render_target.is_none() {
                     let mut rect: RECT = mem::uninitialized();
-                    user32::GetClientRect(hwnd, &mut rect);
+                    GetClientRect(hwnd, &mut rect);
                     //println!("rect={:?}", rect);
                     let width = (rect.right - rect.left) as u32;
                     let height = (rect.bottom - rect.top) as u32;
@@ -126,13 +146,13 @@ impl WndProc for MainWin {
                     state.render_target = state.d2d_factory.create_render_target(params).ok();
                 }
                 state.render();
-                user32::ValidateRect(hwnd, null_mut());
+                ValidateRect(hwnd, null_mut());
                 Some(0)
             },
             WM_SIZE => unsafe {
                 let mut state = self.state.borrow_mut();
                 state.render_target.as_mut().and_then(|rt|
-                    rt.hwnd_rt().map(|mut hrt|
+                    rt.hwnd_rt().map(|hrt|
                         hrt.Resize(&D2D1_SIZE_U {
                             width: LOWORD(lparam as u32) as u32,
                             height: HIWORD(lparam as u32) as u32,
@@ -151,7 +171,7 @@ fn create_main() -> Result<HWND, Error> {
         let class_name = "d1d1test-rs".to_wide();
         let icon = LoadIconW(0 as HINSTANCE, IDI_APPLICATION);
         let cursor = LoadCursorW(0 as HINSTANCE, IDC_IBEAM);
-        let brush = gdi32::CreateSolidBrush(0xffffff);
+        let brush = CreateSolidBrush(0xffffff);
         let wnd = WNDCLASSW {
             style: 0,
             lpfnWndProc: Some(window::win_proc_dispatch),
@@ -171,7 +191,7 @@ fn create_main() -> Result<HWND, Error> {
         let main_win: Rc<Box<WndProc>> = Rc::new(Box::new(MainWin::new(MainWinState::new())));
         let width = 500;  // TODO: scale by dpi
         let height = 400;
-        let hwnd = create_window(winapi::WS_EX_OVERLAPPEDWINDOW, class_name.as_ptr(),
+        let hwnd = create_window(WS_EX_OVERLAPPEDWINDOW, class_name.as_ptr(),
             class_name.as_ptr(), WS_OVERLAPPEDWINDOW,
             CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0 as HWND, 0 as HMENU, 0 as HINSTANCE,
             main_win);
