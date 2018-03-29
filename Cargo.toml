@@ -9,8 +9,8 @@ authors = [
 description = "Test program exercising Rust bindings for Direct2D and DirectWrite."
 
 [dependencies]
-directwrite = "0.0.7"
-direct2d = "0.0.7"
+directwrite = "0.0.9"
+direct2d = "0.0.9"
 
 libloading = "0.3"
 
@@ -23,11 +23,3 @@ features = ["d2d1_1", "dwrite", "winbase", "libloaderapi", "errhandlingapi", "wi
 
 [build-dependencies]
 winapi-build = "0.1"
-
-[patch.crates-io.directwrite]
-#git = "https://github.com/Connicpu/directwrite-rs.git"
-path = "../directwrite-rs"
-
-[patch.crates-io.direct2d]
-# git = "https://github.com/Connicpu/direct2d-rs.git"
-path = "../direct2d-rs"

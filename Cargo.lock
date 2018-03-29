@@ -7,8 +7,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "d2d1test-rs"
 version = "0.1.0"
 dependencies = [
- "direct2d 0.0.7",
- "directwrite 0.0.7",
+ "direct2d 0.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "directwrite 0.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "libloading 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi-build 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -16,17 +16,18 @@ dependencies = [
 
 [[package]]
 name = "direct2d"
-version = "0.0.7"
+version = "0.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "directwrite 0.0.7",
- "uuid 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "directwrite 0.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "wio 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "directwrite"
-version = "0.0.7"
+version = "0.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "winapi 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "wio 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -168,11 +169,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "uuid"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
 name = "winapi"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -211,6 +207,8 @@ dependencies = [
 
 [metadata]
 "checksum bitflags 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "aad18937a628ec6abcd26d1489012cc0e18c21798210f491af69ded9b881106d"
+"checksum direct2d 0.0.9 (registry+https://github.com/rust-lang/crates.io-index)" = "e3900cd45f7b9c723188d52f0801af1aef748dea91d8df544e07ebb5059883c7"
+"checksum directwrite 0.0.9 (registry+https://github.com/rust-lang/crates.io-index)" = "cacb08d14cfd2ee00c770be606aef1b737db61ca6ea8d6a3a30536b040ec502c"
 "checksum dtoa 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "09c3753c3db574d215cba4ea76018483895d7bff25a31b49ba45db21c48e50ab"
 "checksum fuchsia-zircon 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "f6c0581a4e363262e52b87f59ee2afe3415361c6ec35e665924eb08afe8ff159"
 "checksum fuchsia-zircon-sys 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "43f3795b4bae048dc6123a6b972cadde2e676f9ded08aef6bb77f5f157684a82"
@@ -229,7 +227,6 @@ dependencies = [
 "checksum serde_json 0.9.10 (registry+https://github.com/rust-lang/crates.io-index)" = "ad8bcf487be7d2e15d3d543f04312de991d631cfe1b43ea0ade69e6a8a5b16a1"
 "checksum siphasher 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "0df90a788073e8d0235a67e50441d47db7c8ad9debd91cbf43736a2a92d36537"
 "checksum target_build_utils 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "013d134ae4a25ee744ad6129db589018558f620ddfa44043887cdd45fa08e75c"
-"checksum uuid 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7cfec50b0842181ba6e713151b72f4ec84a6a7e2c9c8a8a3ffc37bb1cd16b231"
 "checksum winapi 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)" = "167dc9d6949a9b857f3451275e911c3f44255842c1f7a76f33c55103a909087a"
 "checksum winapi 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)" = "04e3bd221fcbe8a271359c04f21a76db7d0c6028862d1bb5512d85e1e2eb5bb3"
 "checksum winapi-build 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "2d315eee3b34aca4797b2da6b13ed88266e6d612562a0c46390af8299fc699bc"
